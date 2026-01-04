@@ -10,3 +10,7 @@ cdk.out
 cdk.context.json
 
 .vscode
+
+# templates
+expo-oauth-example
+*.txt
