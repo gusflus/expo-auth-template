@@ -1,113 +1,15 @@
-import { useEffect, useState } from "react";
-import { Button, FlatList, StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
-import type { Schema } from "@/backend/amplify/data/resource";
-import { useAuthenticator } from "@aws-amplify/ui-react-native";
-import { generateClient } from "aws-amplify/data";
-import { GraphQLError } from "graphql";
-const client = generateClient<Schema>();
-
-const SignOutButton = () => {
-  const { signOut } = useAuthenticator();
-
+export default function Index() {
   return (
-    <View style={styles.signOutButton}>
-      <Button title="Sign Out" onPress={signOut} />
-    </View>
-  );
-};
-
-const TodoList = () => {
-  const dateTimeNow = new Date();
-  const [todos, setTodos] = useState<Schema["Todo"]["type"][]>([]);
-  const [errors, setErrors] = useState<GraphQLError>();
-
-  useEffect(() => {
-    const sub = client.models.Todo.observeQuery().subscribe({
-      next: ({ items }) => {
-        setTodos([...items]);
-      },
-    });
-
-    return () => sub.unsubscribe();
-  }, []);
-
-  const createTodo = async () => {
-    try {
-      await client.models.Todo.create({
-        content: `${dateTimeNow.getUTCMilliseconds()}`,
-      });
-    } catch (error: unknown) {
-      if (error instanceof GraphQLError) {
-        setErrors(error);
-      } else {
-        throw error;
-      }
-    }
-  };
-
-  if (errors) {
-    return <Text>{errors.message}</Text>;
-  }
-
-  const renderItem = ({ item }: { item: Schema["Todo"]["type"] }) => (
-    <TodoItem {...item} />
-  );
-  return (
-    <View style={{ flex: 1 }}>
-      {/* <SignOutButton /> */}
-      <FlatList
-        data={todos}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        ItemSeparatorComponent={() => (
-          <View style={styles.listItemSeparator} />
-        )}
-        ListEmptyComponent={() => <Text>The todo list is empty.</Text>}
-        style={styles.listContainer}
-      ></FlatList>
-      <Button onPress={createTodo} title="Create Todo" />
-    </View>
-  );
-};
-
-const TodoItem = (todo: Schema["Todo"]["type"]) => (
-  <View style={styles.todoItemContainer} key={todo.id}>
-    <Text
+    <View
       style={{
-        ...styles.todoItemText,
-        textDecorationLine: todo.isDone ? "line-through" : "none",
-        textDecorationColor: todo.isDone ? "red" : "black",
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
       }}
     >
-      {todo.content}
-    </Text>
-    <Button
-      onPress={async () => {
-        await client.models.Todo.delete(todo);
-      }}
-      title="Delete"
-    />
-    <Button
-      onPress={() => {
-        client.models.Todo.update({
-          id: todo.id,
-          isDone: !todo.isDone,
-        });
-      }}
-      title={todo.isDone ? "Undo" : "Done"}
-    />
-  </View>
-);
-
-const styles = StyleSheet.create({
-  todoItemContainer: { flexDirection: "row", alignItems: "center", padding: 8 },
-  todoItemText: { flex: 1, textAlign: "center" },
-  listContainer: { flex: 1, alignSelf: "stretch", padding:8 },
-  listItemSeparator: { backgroundColor: "lightgrey", height: 2 },
-  signOutButton: {
-    alignSelf: "flex-end",
-  },
-});
-
-export default TodoList;
+      <Text>Edit app/index.tsx to edit this screen.</Text>
+    </View>
+  );
+}

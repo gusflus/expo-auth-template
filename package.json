@@ -3,14 +3,8 @@
   "packageManager": "yarn@4.9.2",
   "workspaces": {
     "packages": [
-      "packages/backend",
-      "apps/expo-app"
+      "apps/expo-app",
+      "packages/backend"
     ]
-  },
-  "scripts": {
-    "esbuild": "esbuild"
-  },
-  "devDependencies": {
-    "esbuild": "^0.27.2"
   }
 }
