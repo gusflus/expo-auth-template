@@ -1,0 +1,16 @@
+{
+  "name": "backend",
+  "packageManager": "yarn@4.9.2",
+  "devDependencies": {
+    "@aws-amplify/backend": "^1.19.0",
+    "@aws-amplify/backend-cli": "^1.8.1",
+    "aws-cdk-lib": "2.216.0",
+    "constructs": "^10.0.0",
+    "esbuild": "^0.27.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "aws-amplify": "^6.15.9"
+  }
+}
