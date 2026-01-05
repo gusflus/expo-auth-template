@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "paths": {
+      //   "@/amplify": ["./packages/backend/amplify/data/resource"],
+      "@/backend": ["./packages/backend"]
+    }
+  }
+}
