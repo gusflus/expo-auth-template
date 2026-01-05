@@ -13432,6 +13432,8 @@ __metadata:
 "expo-auth-template@workspace:.":
   version: 0.0.0-use.local
   resolution: "expo-auth-template@workspace:."
+  dependencies:
+    esbuild: "npm:^0.27.2"
   languageName: unknown
   linkType: soft
 
