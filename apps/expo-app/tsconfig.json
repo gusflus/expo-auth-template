@@ -5,6 +5,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@/backend": [
+        "../../packages/backend"
+      ],
+      "@/backend/*": [
+        "../../packages/backend/*"
       ]
     }
   },

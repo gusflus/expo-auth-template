@@ -2,20 +2,9 @@ import { useEffect, useState } from "react";
 import { Button, FlatList, StyleSheet, Text, View } from "react-native";
 
 import type { Schema } from "@/backend/amplify/data/resource";
-import { useAuthenticator } from "@aws-amplify/ui-react-native";
 import { generateClient } from "aws-amplify/data";
 import { GraphQLError } from "graphql";
 const client = generateClient<Schema>();
-
-const SignOutButton = () => {
-  const { signOut } = useAuthenticator();
-
-  return (
-    <View style={styles.signOutButton}>
-      <Button title="Sign Out" onPress={signOut} />
-    </View>
-  );
-};
 
 const TodoList = () => {
   const dateTimeNow = new Date();
@@ -55,7 +44,6 @@ const TodoList = () => {
   );
   return (
     <View style={{ flex: 1 }}>
-      {/* <SignOutButton /> */}
       <FlatList
         data={todos}
         renderItem={renderItem}
@@ -105,9 +93,6 @@ const styles = StyleSheet.create({
   todoItemText: { flex: 1, textAlign: "center" },
   listContainer: { flex: 1, alignSelf: "stretch", padding:8 },
   listItemSeparator: { backgroundColor: "lightgrey", height: 2 },
-  signOutButton: {
-    alignSelf: "flex-end",
-  },
 });
 
 export default TodoList;
