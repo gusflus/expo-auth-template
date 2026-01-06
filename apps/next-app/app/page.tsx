@@ -28,22 +28,13 @@ const formFields = {
   },
 };
 
-const services = {
-  async handleSignInWithGoogle() {
-    console.log("Google sign-in initiated");
-    try {
-      // This will be handled by Amplify automatically
-      console.log("Amplify should handle this automatically");
-    } catch (error) {
-      console.error("Google sign-in error:", error);
-    }
-  },
-};
-
 export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center p-12 bg-slate-50">
-      <Authenticator formFields={formFields} services={services} socialProviders={['google']}>
+      <Authenticator
+        formFields={formFields}
+        socialProviders={["google"]}
+      >
         {({ signOut }) => (
           <div className="w-full max-w-2xl space-y-6">
             <div className="flex justify-between items-center">
@@ -124,7 +115,7 @@ function UserDataDisplay() {
           <strong>User ID:</strong> {data.userId}
         </p>
         <p>
-          <strong>Email:</strong> {data.attributes.email || 'N/A'}
+          <strong>Email:</strong> {data.attributes.email || "N/A"}
         </p>
         {data.attributes.name && (
           <p>
