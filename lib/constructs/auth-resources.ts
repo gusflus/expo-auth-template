@@ -76,8 +76,8 @@ export class AuthResources extends Construct {
             cdk.aws_cognito.OAuthScope.OPENID,
             cdk.aws_cognito.OAuthScope.PROFILE,
           ],
-          callbackUrls: ["http://localhost:3000/"],
-          logoutUrls: ["http://localhost:3000/"],
+          callbackUrls: ["http://localhost:3000/", "exp://localhost:8081/--/"],
+          logoutUrls: ["http://localhost:3000/", "exp://localhost:8081/--/"],
         },
         supportedIdentityProviders: [
           cdk.aws_cognito.UserPoolClientIdentityProvider.COGNITO,
