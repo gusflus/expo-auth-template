@@ -1,7 +1,7 @@
 import * as cdk from "aws-cdk-lib";
+import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Construct } from "constructs";
-import * as path from 'path';
-import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
+import * as path from "path";
 
 export class AuthResources extends Construct {
   public readonly userPool: cdk.aws_cognito.UserPool;
@@ -132,13 +132,18 @@ export class AuthResources extends Construct {
     });
 
     // Create Cognito Identity Pool for native Apple Sign In
-    this.identityPool = new cdk.aws_cognito.CfnIdentityPool(this, "IdentityPool", {
-      allowUnauthenticatedIdentities: false,
-      supportedLoginProviders: {
-        // Use the native app bundle id if provided (matches token aud), otherwise fall back to the service id
-        "appleid.apple.com": process.env.APPLE_BUNDLE_ID || process.env.APPLE_CLIENT_ID!,
-      },
-    });
+    this.identityPool = new cdk.aws_cognito.CfnIdentityPool(
+      this,
+      "IdentityPool",
+      {
+        allowUnauthenticatedIdentities: false,
+        supportedLoginProviders: {
+          // Use the native app bundle id if provided (matches token aud), otherwise fall back to the service id
+          "appleid.apple.com":
+            process.env.APPLE_BUNDLE_ID || process.env.APPLE_CLIENT_ID!,
+        },
+      }
+    );
 
     // Create IAM role for authenticated users
     const authenticatedRole = new cdk.aws_iam.Role(this, "AuthenticatedRole", {
@@ -155,34 +160,45 @@ export class AuthResources extends Construct {
         "sts:AssumeRoleWithWebIdentity"
       ),
       managedPolicies: [
-        cdk.aws_iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonCognitoPowerUser"),
+        cdk.aws_iam.ManagedPolicy.fromAwsManagedPolicyName(
+          "AmazonCognitoPowerUser"
+        ),
       ],
     });
 
     // Attach the role to the identity pool
-    new cdk.aws_cognito.CfnIdentityPoolRoleAttachment(this, "IdentityPoolRoleAttachment", {
-      identityPoolId: this.identityPool.ref,
-      roles: {
-        authenticated: authenticatedRole.roleArn,
-      },
-    });
+    new cdk.aws_cognito.CfnIdentityPoolRoleAttachment(
+      this,
+      "IdentityPoolRoleAttachment",
+      {
+        identityPoolId: this.identityPool.ref,
+        roles: {
+          authenticated: authenticatedRole.roleArn,
+        },
+      }
+    );
 
     // Create Lambda function for Apple authentication (bundled)
     const appleAuthLambda = new NodejsFunction(this, "AppleAuthLambda", {
       runtime: cdk.aws_lambda.Runtime.NODEJS_20_X,
-      entry: path.join(__dirname, '../../lambda/apple-auth.ts'),
-      handler: 'handler',
+      entry: path.join(__dirname, "../../lambda/apple-auth.ts"),
+      handler: "handler",
       bundling: {
         // Ensure these runtime deps are included in the bundle
-        nodeModules: ['jsonwebtoken', 'jwks-rsa', '@aws-sdk/client-cognito-identity'],
+        nodeModules: [
+          "jsonwebtoken",
+          "jwks-rsa",
+          "@aws-sdk/client-cognito-identity",
+        ],
       },
       environment: {
         IDENTITY_POOL_ID: this.identityPool.ref,
         APPLE_CLIENT_ID: process.env.APPLE_CLIENT_ID!,
         // Bundle ID used by the native app (e.g. com.gusflus.expoapp)
-        APPLE_BUNDLE_ID: process.env.APPLE_BUNDLE_ID || 'com.gusflus.expoapp',
+        APPLE_BUNDLE_ID: process.env.APPLE_BUNDLE_ID || "com.gusflus.expoapp",
         // Also include the service ID explicitly so the lambda has both
-        APPLE_SERVICE_ID: process.env.APPLE_SERVICE_ID || process.env.APPLE_CLIENT_ID!,
+        APPLE_SERVICE_ID:
+          process.env.APPLE_SERVICE_ID || process.env.APPLE_CLIENT_ID!,
       },
       timeout: cdk.Duration.seconds(30),
     });
@@ -210,7 +226,11 @@ export class AuthResources extends Construct {
       },
     });
 
-    const appleAuthIntegration = new cdk.aws_apigateway.LambdaIntegration(appleAuthLambda);
-    this.appleAuthApi.root.addResource("apple-auth").addMethod("POST", appleAuthIntegration);
+    const appleAuthIntegration = new cdk.aws_apigateway.LambdaIntegration(
+      appleAuthLambda
+    );
+    this.appleAuthApi.root
+      .addResource("apple-auth")
+      .addMethod("POST", appleAuthIntegration);
   }
 }
