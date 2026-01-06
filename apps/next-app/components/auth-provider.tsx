@@ -10,7 +10,6 @@ export default function AuthProvider({
   children: React.ReactNode;
 }) {
   useEffect(() => {
-    // Configure Amplify on client side
     Amplify.configure(authConfig, { ssr: true });
   }, []);
 

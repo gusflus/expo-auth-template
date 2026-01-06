@@ -4,6 +4,7 @@ import { Construct } from "constructs";
 export class AuthResources extends Construct {
   public readonly userPool: cdk.aws_cognito.UserPool;
   public readonly userPoolClient: cdk.aws_cognito.UserPoolClient;
+  public readonly userPoolDomain: cdk.aws_cognito.UserPoolDomain;
   public readonly defaultUserGroupName: string;
 
   constructor(scope: Construct, id: string) {
@@ -28,32 +29,32 @@ export class AuthResources extends Construct {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
-    // TODO: Add OAuth providers later
-    // const googleProvider = new cdk.aws_cognito.UserPoolIdentityProviderGoogle(this, "GoogleProvider", {
-    //   userPool: this.userPool,
-    //   clientId: process.env.GOOGLE_CLIENT_ID || "placeholder",
-    //   clientSecret: process.env.GOOGLE_CLIENT_SECRET || "placeholder",
-    //   scopes: ["email", "openid", "profile"],
-    //   attributeMapping: {
-    //     email: cdk.aws_cognito.ProviderAttribute.GOOGLE_EMAIL,
-    //     givenName: cdk.aws_cognito.ProviderAttribute.GOOGLE_GIVEN_NAME,
-    //     familyName: cdk.aws_cognito.ProviderAttribute.GOOGLE_FAMILY_NAME,
-    //   },
-    // });
+    // Create a domain for the User Pool
+    const userPoolDomain = new cdk.aws_cognito.UserPoolDomain(this, "UserPoolDomain", {
+      userPool: this.userPool,
+      cognitoDomain: {
+        domainPrefix: "expo-auth-pp7xcj",
+      },
+    });
 
-    // const appleProvider = new cdk.aws_cognito.UserPoolIdentityProviderApple(this, "AppleProvider", {
-    //   userPool: this.userPool,
-    //   clientId: process.env.APPLE_CLIENT_ID || "placeholder",
-    //   teamId: process.env.APPLE_TEAM_ID || "placeholder",
-    //   keyId: process.env.APPLE_KEY_ID || "placeholder",
-    //   privateKey: process.env.APPLE_PRIVATE_KEY || "placeholder",
-    //   scopes: ["email", "name"],
-    //   attributeMapping: {
-    //     email: cdk.aws_cognito.ProviderAttribute.APPLE_EMAIL,
-    //     givenName: cdk.aws_cognito.ProviderAttribute.APPLE_FIRST_NAME,
-    //     familyName: cdk.aws_cognito.ProviderAttribute.APPLE_LAST_NAME,
-    //   },
-    // });
+    // Google OAuth provider
+    const googleProvider = new cdk.aws_cognito.UserPoolIdentityProviderGoogle(
+      this,
+      "GoogleProvider",
+      {
+        userPool: this.userPool,
+        clientId: process.env.GOOGLE_CLIENT_ID!,
+        clientSecretValue: cdk.SecretValue.unsafePlainText(
+          process.env.GOOGLE_CLIENT_SECRET!
+        ),
+        scopes: ["email", "openid", "profile"],
+        attributeMapping: {
+          email: cdk.aws_cognito.ProviderAttribute.GOOGLE_EMAIL,
+          givenName: cdk.aws_cognito.ProviderAttribute.GOOGLE_GIVEN_NAME,
+          familyName: cdk.aws_cognito.ProviderAttribute.GOOGLE_FAMILY_NAME,
+        },
+      }
+    );
 
     this.userPoolClient = new cdk.aws_cognito.UserPoolClient(
       this,
@@ -66,25 +67,28 @@ export class AuthResources extends Construct {
           userSrp: true,
           custom: true,
         },
-        // TODO: Add OAuth configuration later
-        // oAuth: {
-        //   flows: {
-        //     authorizationCodeGrant: true,
-        //   },
-        //   scopes: [cdk.aws_cognito.OAuthScope.EMAIL, cdk.aws_cognito.OAuthScope.OPENID, cdk.aws_cognito.OAuthScope.PROFILE],
-        //   callbackUrls: ["http://localhost:3000/auth/callback"],
-        //   logoutUrls: ["http://localhost:3000"],
-        // },
-        // supportedIdentityProviders: [
-        //   cdk.aws_cognito.UserPoolClientIdentityProvider.COGNITO,
-        //   cdk.aws_cognito.UserPoolClientIdentityProvider.GOOGLE,
-        //   cdk.aws_cognito.UserPoolClientIdentityProvider.APPLE,
-        // ],
+        oAuth: {
+          flows: {
+            authorizationCodeGrant: true,
+          },
+          scopes: [
+            cdk.aws_cognito.OAuthScope.EMAIL,
+            cdk.aws_cognito.OAuthScope.OPENID,
+            cdk.aws_cognito.OAuthScope.PROFILE,
+          ],
+          callbackUrls: ["http://localhost:3000/"],
+          logoutUrls: ["http://localhost:3000/"],
+        },
+        supportedIdentityProviders: [
+          cdk.aws_cognito.UserPoolClientIdentityProvider.COGNITO,
+          cdk.aws_cognito.UserPoolClientIdentityProvider.GOOGLE,
+        ],
       }
     );
 
-    // this.userPoolClient.node.addDependency(googleProvider);
-    // this.userPoolClient.node.addDependency(appleProvider);
+    this.userPoolClient.node.addDependency(googleProvider);
+
+    this.userPoolDomain = userPoolDomain;
 
     this.userPool.addGroup("AdminsGroup", {
       groupName: adminGroupName,

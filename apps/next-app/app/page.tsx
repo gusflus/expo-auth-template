@@ -28,10 +28,22 @@ const formFields = {
   },
 };
 
+const services = {
+  async handleSignInWithGoogle() {
+    console.log("Google sign-in initiated");
+    try {
+      // This will be handled by Amplify automatically
+      console.log("Amplify should handle this automatically");
+    } catch (error) {
+      console.error("Google sign-in error:", error);
+    }
+  },
+};
+
 export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center p-12 bg-slate-50">
-      <Authenticator formFields={formFields}>
+      <Authenticator formFields={formFields} services={services} socialProviders={['google']}>
         {({ signOut }) => (
           <div className="w-full max-w-2xl space-y-6">
             <div className="flex justify-between items-center">
@@ -65,8 +77,23 @@ function UserDataDisplay() {
         // 2. Get the actual JWT tokens
         const session = await fetchAuthSession();
 
-        // 3. Get profile details (Email, etc.)
-        const attributes = await fetchUserAttributes();
+        // 3. Try to get profile details, but handle OAuth users gracefully
+        let attributes = {};
+        try {
+          attributes = await fetchUserAttributes();
+        } catch (error) {
+          console.log("Could not fetch user attributes (likely OAuth user):", error);
+          // For OAuth users, extract info from ID token instead
+          if (session.tokens?.idToken) {
+            const payload = session.tokens.idToken.payload;
+            attributes = {
+              email: payload.email,
+              given_name: payload.given_name,
+              family_name: payload.family_name,
+              name: payload.name,
+            };
+          }
+        }
 
         setData({
           userId: user.userId,
@@ -96,8 +123,13 @@ function UserDataDisplay() {
           <strong>User ID:</strong> {data.userId}
         </p>
         <p>
-          <strong>Email:</strong> {data.attributes.email}
+          <strong>Email:</strong> {data.attributes.email || 'N/A'}
         </p>
+        {data.attributes.name && (
+          <p>
+            <strong>Name:</strong> {data.attributes.name}
+          </p>
+        )}
       </section>
 
       {/* JWT Tokens */}
