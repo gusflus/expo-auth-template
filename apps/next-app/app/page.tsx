@@ -77,21 +77,22 @@ function UserDataDisplay() {
         // 2. Get the actual JWT tokens
         const session = await fetchAuthSession();
 
-        // 3. Try to get profile details, but handle OAuth users gracefully
+        // 3. Get profile details - OAuth users get info from ID token
         let attributes = {};
-        try {
-          attributes = await fetchUserAttributes();
-        } catch (error) {
-          console.log("Could not fetch user attributes (likely OAuth user):", error);
-          // For OAuth users, extract info from ID token instead
-          if (session.tokens?.idToken) {
-            const payload = session.tokens.idToken.payload;
-            attributes = {
-              email: payload.email,
-              given_name: payload.given_name,
-              family_name: payload.family_name,
-              name: payload.name,
-            };
+        if (session.tokens?.idToken) {
+          const payload = session.tokens.idToken.payload;
+          attributes = {
+            email: payload.email,
+            given_name: payload.given_name,
+            family_name: payload.family_name,
+            name: payload.name,
+          };
+        } else {
+          // For non-OAuth users, try fetching attributes
+          try {
+            attributes = await fetchUserAttributes();
+          } catch (error) {
+            console.log("Could not fetch user attributes:", error);
           }
         }
 
