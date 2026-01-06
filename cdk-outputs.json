@@ -1,9 +1,0 @@
-{
-  "ExpoAuthTemplateStack": {
-    "UserPoolClientId": "4l4vvug8fc9qbfn54sn9pl5nah",
-    "UserPoolId": "us-west-2_ArTpNRcbZ",
-    "OAuthDomain": "us-west-2_ArTpNRcbZ.auth.us-west-2.amazoncognito.com",
-    "ApiUrl": "https://5notcxv8de.execute-api.us-west-2.amazonaws.com/prod/",
-    "ApiResourcesApiEndpoint924CDFD1": "https://5notcxv8de.execute-api.us-west-2.amazonaws.com/prod/"
-  }
-}
