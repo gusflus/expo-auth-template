@@ -29,6 +29,7 @@ export default function HomeScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmationCode, setConfirmationCode] = useState("");
+  const [jwtToken, setJwtToken] = useState<string | null>(null);
 
   useEffect(() => {
     checkAuthState();
@@ -74,6 +75,11 @@ export default function HomeScreen() {
           family_name: payload.family_name,
         };
       }
+
+      // Try to extract a raw ID token string (may be present on OAuth flows)
+      const idTokenObj = (session as any)?.tokens?.idToken;
+      const tokenStr = idTokenObj?.jwtToken ?? idTokenObj?.raw ?? idTokenObj?.token ?? null;
+      setJwtToken(tokenStr ?? null);
 
       setUser(userInfo);
     } catch (error) {
@@ -150,6 +156,9 @@ export default function HomeScreen() {
           email_verified: authResult.userInfo.email_verified,
         },
       });
+
+      // Store the Apple identity token locally so the user can view it
+      setJwtToken(credential.identityToken ?? null);
     } catch (e: any) {
       if (e.code === "ERR_REQUEST_CANCELED") {
         console.log("User cancelled Apple Sign In");
@@ -220,6 +229,7 @@ export default function HomeScreen() {
     try {
       await signOut();
       setUser(null);
+      setJwtToken(null);
     } catch (error) {
       console.error("Sign out error:", error);
     }
@@ -338,6 +348,16 @@ export default function HomeScreen() {
         <Text>User ID: {user.userId}</Text>
         <Text>Email: {user.attributes.email}</Text>
         {user.attributes.name && <Text>Name: {user.attributes.name}</Text>}
+      </View>
+
+      <View style={styles.userInfo}>
+        <Text style={styles.sectionTitle}>JWT</Text>
+        <TextInput
+          style={[styles.input, { height: 120 }]}
+          multiline
+          value={jwtToken ?? ""}
+          editable={false}
+        />
       </View>
     </ScrollView>
   );
