@@ -1,32 +1,49 @@
-import { signInWithRedirect, signOut, getCurrentUser, fetchAuthSession, signUp, confirmSignUp, signIn } from "aws-amplify/auth";
+import {
+  confirmSignUp,
+  fetchAuthSession,
+  getCurrentUser,
+  signIn,
+  signInWithRedirect,
+  signOut,
+  signUp,
+} from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
+import * as AppleAuthentication from "expo-apple-authentication";
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Alert } from "react-native";
+import {
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-type AuthMode = 'signin' | 'signup' | 'confirm';
+type AuthMode = "signin" | "signup" | "confirm";
 
 export default function HomeScreen() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [authMode, setAuthMode] = useState<AuthMode>('signin');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmationCode, setConfirmationCode] = useState('');
+  const [authMode, setAuthMode] = useState<AuthMode>("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmationCode, setConfirmationCode] = useState("");
 
   useEffect(() => {
     checkAuthState();
-    
+
     // Listen for auth events
-    const hubListener = Hub.listen('auth', ({ payload }) => {
+    const hubListener = Hub.listen("auth", ({ payload }) => {
       switch (payload.event) {
-        case 'signInWithRedirect':
+        case "signInWithRedirect":
           checkAuthState();
           break;
-        case 'signInWithRedirect_failure':
-          console.error('Sign in failed:', payload.data);
+        case "signInWithRedirect_failure":
+          console.error("Sign in failed:", payload.data);
           setLoading(false);
           break;
-        case 'signedOut':
+        case "signedOut":
           setUser(null);
           setLoading(false);
           break;
@@ -40,11 +57,11 @@ export default function HomeScreen() {
     try {
       const currentUser = await getCurrentUser();
       const session = await fetchAuthSession();
-      
+
       let userInfo = {
         userId: currentUser.userId,
         username: currentUser.username,
-        attributes: {}
+        attributes: {},
       };
 
       // Get user info from ID token for OAuth users
@@ -77,12 +94,72 @@ export default function HomeScreen() {
     }
   };
 
-  const handleAppleSignIn = async () => {
+  const handleNativeAppleSignIn = async () => {
     try {
       setLoading(true);
-      await signInWithRedirect({ provider: "Apple" });
-    } catch (error) {
-      console.error("Sign in error:", error);
+
+      // Use native Apple authentication
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      console.log("Apple credential received:", {
+        identityToken: credential.identityToken ? "present" : "missing",
+        user: credential.user,
+      });
+
+      // Send the identity token to our backend
+      const apiUrl = process.env.EXPO_PUBLIC_APPLE_AUTH_API_URL;
+      console.log("Calling API:", apiUrl);
+
+      const response = await fetch(
+        `${apiUrl}/apple-auth`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            identityToken: credential.identityToken,
+          }),
+        }
+      );
+
+      console.log("API response status:", response.status);
+      const responseText = await response.text();
+      console.log("API response body:", responseText);
+
+      if (!response.ok) {
+        throw new Error(`Backend error: ${response.status} - ${responseText}`);
+      }
+
+      const authResult = JSON.parse(responseText);
+
+      // Store the credentials and user info
+      console.log("Authentication successful:", authResult);
+
+      // Update user state
+      setUser({
+        userId: authResult.identityId,
+        username: authResult.userInfo.sub,
+        attributes: {
+          email: authResult.userInfo.email,
+          email_verified: authResult.userInfo.email_verified,
+        },
+      });
+    } catch (e: any) {
+      if (e.code === "ERR_REQUEST_CANCELED") {
+        console.log("User cancelled Apple Sign In");
+        setLoading(false);
+      } else {
+        console.error("Apple Sign In Error:", e);
+        Alert.alert("Apple Sign In Error", e.message);
+        setLoading(false);
+      }
+    } finally {
       setLoading(false);
     }
   };
@@ -110,9 +187,12 @@ export default function HomeScreen() {
           },
         },
       });
-      setAuthMode('confirm');
+      setAuthMode("confirm");
       setLoading(false);
-      Alert.alert("Success", "Please check your email for the confirmation code");
+      Alert.alert(
+        "Success",
+        "Please check your email for the confirmation code"
+      );
     } catch (error: any) {
       Alert.alert("Sign Up Error", error.message);
       setLoading(false);
@@ -127,8 +207,8 @@ export default function HomeScreen() {
         confirmationCode,
       });
       Alert.alert("Success", "Account confirmed! You can now sign in.");
-      setAuthMode('signin');
-      setConfirmationCode('');
+      setAuthMode("signin");
+      setConfirmationCode("");
     } catch (error: any) {
       Alert.alert("Confirmation Error", error.message);
     } finally {
@@ -157,21 +237,27 @@ export default function HomeScreen() {
     return (
       <ScrollView style={styles.container}>
         <Text style={styles.title}>Expo Auth Demo</Text>
-        
+
         {/* Google Sign In */}
-        <TouchableOpacity style={styles.googleButton} onPress={handleGoogleSignIn}>
+        <TouchableOpacity
+          style={styles.googleButton}
+          onPress={handleGoogleSignIn}
+        >
           <Text style={styles.buttonText}>Sign in with Google</Text>
         </TouchableOpacity>
 
         {/* Apple Sign In */}
-        <TouchableOpacity style={styles.appleButton} onPress={handleAppleSignIn}>
+        <TouchableOpacity
+          style={styles.appleButton}
+          onPress={handleNativeAppleSignIn}
+        >
           <Text style={styles.buttonText}>Sign in with Apple</Text>
         </TouchableOpacity>
 
         <Text style={styles.divider}>OR</Text>
 
         {/* Email Auth Form */}
-        {authMode === 'confirm' ? (
+        {authMode === "confirm" ? (
           <View style={styles.form}>
             <Text style={styles.formTitle}>Confirm Your Account</Text>
             <TextInput
@@ -181,17 +267,20 @@ export default function HomeScreen() {
               onChangeText={setConfirmationCode}
               keyboardType="numeric"
             />
-            <TouchableOpacity style={styles.button} onPress={handleConfirmSignUp}>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handleConfirmSignUp}
+            >
               <Text style={styles.buttonText}>Confirm Account</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setAuthMode('signin')}>
+            <TouchableOpacity onPress={() => setAuthMode("signin")}>
               <Text style={styles.linkText}>Back to Sign In</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.form}>
             <Text style={styles.formTitle}>
-              {authMode === 'signin' ? 'Sign In' : 'Sign Up'}
+              {authMode === "signin" ? "Sign In" : "Sign Up"}
             </Text>
             <TextInput
               style={styles.input}
@@ -208,22 +297,25 @@ export default function HomeScreen() {
               onChangeText={setPassword}
               secureTextEntry
             />
-            <TouchableOpacity 
-              style={styles.button} 
-              onPress={authMode === 'signin' ? handleEmailSignIn : handleEmailSignUp}
+            <TouchableOpacity
+              style={styles.button}
+              onPress={
+                authMode === "signin" ? handleEmailSignIn : handleEmailSignUp
+              }
             >
               <Text style={styles.buttonText}>
-                {authMode === 'signin' ? 'Sign In' : 'Sign Up'}
+                {authMode === "signin" ? "Sign In" : "Sign Up"}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')}
+            <TouchableOpacity
+              onPress={() =>
+                setAuthMode(authMode === "signin" ? "signup" : "signin")
+              }
             >
               <Text style={styles.linkText}>
-                {authMode === 'signin' 
-                  ? "Don't have an account? Sign Up" 
-                  : "Already have an account? Sign In"
-                }
+                {authMode === "signin"
+                  ? "Don't have an account? Sign Up"
+                  : "Already have an account? Sign In"}
               </Text>
             </TouchableOpacity>
           </View>

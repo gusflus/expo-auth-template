@@ -19,5 +19,7 @@ export class ExpoAuthTemplateStack extends cdk.Stack {
       value: `${auth.userPoolDomain.domainName}.auth.${this.region}.amazoncognito.com` 
     });
     new cdk.CfnOutput(this, "ApiUrl", { value: api.api.url });
+    new cdk.CfnOutput(this, "IdentityPoolId", { value: auth.identityPool.ref });
+    new cdk.CfnOutput(this, "AppleAuthApiUrl", { value: auth.appleAuthApi.url });
   }
 }

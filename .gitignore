@@ -13,5 +13,7 @@ cdk.out
 .yarn
 TODO.md
 
+!lambda/*.js
+
 cdk-outputs.json
 cdk.context.json
