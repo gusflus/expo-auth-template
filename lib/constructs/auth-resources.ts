@@ -30,12 +30,16 @@ export class AuthResources extends Construct {
     });
 
     // Create a domain for the User Pool
-    const userPoolDomain = new cdk.aws_cognito.UserPoolDomain(this, "UserPoolDomain", {
-      userPool: this.userPool,
-      cognitoDomain: {
-        domainPrefix: "expo-auth-pp7xcj",
-      },
-    });
+    const userPoolDomain = new cdk.aws_cognito.UserPoolDomain(
+      this,
+      "UserPoolDomain",
+      {
+        userPool: this.userPool,
+        cognitoDomain: {
+          domainPrefix: "expo-auth-pp7xcj",
+        },
+      }
+    );
 
     // Google OAuth provider
     const googleProvider = new cdk.aws_cognito.UserPoolIdentityProviderGoogle(
@@ -52,6 +56,25 @@ export class AuthResources extends Construct {
           email: cdk.aws_cognito.ProviderAttribute.GOOGLE_EMAIL,
           givenName: cdk.aws_cognito.ProviderAttribute.GOOGLE_GIVEN_NAME,
           familyName: cdk.aws_cognito.ProviderAttribute.GOOGLE_FAMILY_NAME,
+        },
+      }
+    );
+
+    // Apple OAuth provider
+    const appleProvider = new cdk.aws_cognito.UserPoolIdentityProviderApple(
+      this,
+      "AppleProvider",
+      {
+        userPool: this.userPool,
+        clientId: process.env.APPLE_CLIENT_ID!,
+        teamId: process.env.APPLE_TEAM_ID!,
+        keyId: process.env.APPLE_KEY_ID!,
+        privateKey: process.env.APPLE_PRIVATE_KEY!,
+        scopes: ["email", "name"],
+        attributeMapping: {
+          email: cdk.aws_cognito.ProviderAttribute.APPLE_EMAIL,
+          givenName: cdk.aws_cognito.ProviderAttribute.APPLE_FIRST_NAME,
+          familyName: cdk.aws_cognito.ProviderAttribute.APPLE_LAST_NAME,
         },
       }
     );
@@ -82,11 +105,13 @@ export class AuthResources extends Construct {
         supportedIdentityProviders: [
           cdk.aws_cognito.UserPoolClientIdentityProvider.COGNITO,
           cdk.aws_cognito.UserPoolClientIdentityProvider.GOOGLE,
+          cdk.aws_cognito.UserPoolClientIdentityProvider.APPLE,
         ],
       }
     );
 
     this.userPoolClient.node.addDependency(googleProvider);
+    this.userPoolClient.node.addDependency(appleProvider);
 
     this.userPoolDomain = userPoolDomain;
 

@@ -8,6 +8,10 @@ node_modules
 cdk.out
 
 .env
+*.p8
 
 .yarn
 TODO.md
+
+cdk-outputs.json
+cdk.context.json

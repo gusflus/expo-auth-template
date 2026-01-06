@@ -77,6 +77,16 @@ export default function HomeScreen() {
     }
   };
 
+  const handleAppleSignIn = async () => {
+    try {
+      setLoading(true);
+      await signInWithRedirect({ provider: "Apple" });
+    } catch (error) {
+      console.error("Sign in error:", error);
+      setLoading(false);
+    }
+  };
+
   const handleEmailSignIn = async () => {
     try {
       setLoading(true);
@@ -151,6 +161,11 @@ export default function HomeScreen() {
         {/* Google Sign In */}
         <TouchableOpacity style={styles.googleButton} onPress={handleGoogleSignIn}>
           <Text style={styles.buttonText}>Sign in with Google</Text>
+        </TouchableOpacity>
+
+        {/* Apple Sign In */}
+        <TouchableOpacity style={styles.appleButton} onPress={handleAppleSignIn}>
+          <Text style={styles.buttonText}>Sign in with Apple</Text>
         </TouchableOpacity>
 
         <Text style={styles.divider}>OR</Text>
@@ -288,6 +303,13 @@ const styles = StyleSheet.create({
   },
   googleButton: {
     backgroundColor: "#4285f4",
+    padding: 15,
+    borderRadius: 8,
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  appleButton: {
+    backgroundColor: "#000",
     padding: 15,
     borderRadius: 8,
     alignItems: "center",

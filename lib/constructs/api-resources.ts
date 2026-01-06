@@ -11,9 +11,13 @@ export class ApiResources extends Construct {
   constructor(scope: Construct, id: string, props: ApiResourcesProps) {
     super(scope, id);
 
-    const auth = new cdk.aws_apigateway.CognitoUserPoolsAuthorizer(this, "Authorizer", {
-      cognitoUserPools: [props.userPool],
-    });
+    const auth = new cdk.aws_apigateway.CognitoUserPoolsAuthorizer(
+      this,
+      "Authorizer",
+      {
+        cognitoUserPools: [props.userPool],
+      }
+    );
 
     this.api = new cdk.aws_apigateway.RestApi(this, "Api", {
       restApiName: "ExpoAuthTemplateApi",
@@ -25,20 +29,24 @@ export class ApiResources extends Construct {
 
     // Protected endpoint example
     const protectedResource = this.api.root.addResource("protected");
-    protectedResource.addMethod("GET", 
+    protectedResource.addMethod(
+      "GET",
       new cdk.aws_apigateway.MockIntegration({
-        integrationResponses: [{
-          statusCode: "200",
-          responseTemplates: {
-            "application/json": '{"message": "Hello authenticated user!"}'
-          }
-        }],
+        integrationResponses: [
+          {
+            statusCode: "200",
+            responseTemplates: {
+              "application/json": '{"message": "Hello authenticated user!"}',
+            },
+          },
+        ],
         requestTemplates: {
-          "application/json": '{"statusCode": 200}'
-        }
-      }), {
+          "application/json": '{"statusCode": 200}',
+        },
+      }),
+      {
         authorizer: auth,
-        methodResponses: [{ statusCode: "200" }]
+        methodResponses: [{ statusCode: "200" }],
       }
     );
   }

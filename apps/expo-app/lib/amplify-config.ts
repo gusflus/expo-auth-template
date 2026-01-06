@@ -13,7 +13,7 @@ export const authConfig: ResourcesConfig = {
           redirectSignIn: ["exp://localhost:8081/--/"],
           redirectSignOut: ["exp://localhost:8081/--/"],
           responseType: "code",
-          providers: ["Google"],
+          providers: ["Google", "Apple"],
         },
       },
     },
