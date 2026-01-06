@@ -25,7 +25,8 @@
   },
   "workspaces": {
     "packages": [
-      "apps/expo-app"
+      "apps/expo-app",
+      "apps/next-app"
     ]
   }
 }
