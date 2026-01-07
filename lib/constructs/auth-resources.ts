@@ -1,5 +1,4 @@
 import * as cdk from "aws-cdk-lib";
-import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Construct } from "constructs";
 import * as path from "path";
 
@@ -178,31 +177,38 @@ export class AuthResources extends Construct {
     );
 
     // Create Lambda function for Apple authentication (deploy built JS from lambda/dist)
-    const appleAuthLambda = new cdk.aws_lambda.Function(this, "AppleAuthLambda", {
-      runtime: cdk.aws_lambda.Runtime.NODEJS_20_X,
-      handler: "apple-auth.handler",
-      code: cdk.aws_lambda.Code.fromAsset(path.join(__dirname, "../../lambda/dist"), {
-        // exclude source files - include package and node_modules so runtime deps are packaged
-        exclude: ["**/*.ts"],
-      }),
-      environment: {
-        IDENTITY_POOL_ID: this.identityPool.ref,
-        APPLE_CLIENT_ID: process.env.APPLE_CLIENT_ID!,
-        // Bundle ID used by the native app (e.g. com.gusflus.expoapp)
-        APPLE_BUNDLE_ID: process.env.APPLE_BUNDLE_ID!,
-        // Also include the service ID explicitly so the lambda has both
-        // TODO: should only need one
-        APPLE_SERVICE_ID:
-          process.env.APPLE_SERVICE_ID || process.env.APPLE_CLIENT_ID!,
-        // Cognito User Pool id to persist users
-        USER_POOL_ID: this.userPool.userPoolId,
-        // Name of the identity provider configured on the User Pool (example: SignInWithApple)
-        // TODO: should only need one
-        APPLE_PROVIDER_NAME:
-          process.env.APPLE_PROVIDER_NAME || "SignInWithApple",
-      },
-      timeout: cdk.Duration.seconds(30),
-    });
+    const appleAuthLambda = new cdk.aws_lambda.Function(
+      this,
+      "AppleAuthLambda",
+      {
+        runtime: cdk.aws_lambda.Runtime.NODEJS_20_X,
+        handler: "apple-auth.handler",
+        code: cdk.aws_lambda.Code.fromAsset(
+          path.join(__dirname, "../../lambda/dist"),
+          {
+            // exclude source files - include package and node_modules so runtime deps are packaged
+            exclude: ["**/*.ts"],
+          }
+        ),
+        environment: {
+          IDENTITY_POOL_ID: this.identityPool.ref,
+          APPLE_CLIENT_ID: process.env.APPLE_CLIENT_ID!,
+          // Bundle ID used by the native app (e.g. com.gusflus.expoapp)
+          APPLE_BUNDLE_ID: process.env.APPLE_BUNDLE_ID!,
+          // Also include the service ID explicitly so the lambda has both
+          // TODO: should only need one
+          APPLE_SERVICE_ID:
+            process.env.APPLE_SERVICE_ID || process.env.APPLE_CLIENT_ID!,
+          // Cognito User Pool id to persist users
+          USER_POOL_ID: this.userPool.userPoolId,
+          // Name of the identity provider configured on the User Pool (example: SignInWithApple)
+          // TODO: should only need one
+          APPLE_PROVIDER_NAME:
+            process.env.APPLE_PROVIDER_NAME || "SignInWithApple",
+        },
+        timeout: cdk.Duration.seconds(30),
+      }
+    );
 
     // Grant permissions to the Lambda
     appleAuthLambda.addToRolePolicy(
@@ -250,26 +256,30 @@ export class AuthResources extends Construct {
       .addMethod("POST", appleAuthIntegration);
 
     // Create Lambda function for checking whether an email already exists in the user pool
-    const checkEmailLambda = new cdk.aws_lambda.Function(this, "CheckEmailLambda", {
-      runtime: cdk.aws_lambda.Runtime.NODEJS_20_X,
-      handler: "check-email.handler",
-      code: cdk.aws_lambda.Code.fromAsset(path.join(__dirname, "../../lambda/dist"), {
-        exclude: ["**/*.ts"],
-      }),
-      environment: {
-        USER_POOL_ID: this.userPool.userPoolId,
-      },
-      timeout: cdk.Duration.seconds(30),
-    });
+    const checkEmailLambda = new cdk.aws_lambda.Function(
+      this,
+      "CheckEmailLambda",
+      {
+        runtime: cdk.aws_lambda.Runtime.NODEJS_20_X,
+        handler: "check-email.handler",
+        code: cdk.aws_lambda.Code.fromAsset(
+          path.join(__dirname, "../../lambda/dist"),
+          {
+            exclude: ["**/*.ts"],
+          }
+        ),
+        environment: {
+          USER_POOL_ID: this.userPool.userPoolId,
+        },
+        timeout: cdk.Duration.seconds(30),
+      }
+    );
 
     // Permissions for the check email Lambda - only needs to list/get users
     checkEmailLambda.addToRolePolicy(
       new cdk.aws_iam.PolicyStatement({
         effect: cdk.aws_iam.Effect.ALLOW,
-        actions: [
-          "cognito-idp:ListUsers",
-          "cognito-idp:AdminGetUser",
-        ],
+        actions: ["cognito-idp:ListUsers", "cognito-idp:AdminGetUser"],
         resources: [this.userPool.userPoolArn],
       })
     );

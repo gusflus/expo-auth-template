@@ -27,6 +27,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [authMode, setAuthMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmationCode, setConfirmationCode] = useState("");
   const [jwtToken, setJwtToken] = useState<string | null>(null);
@@ -78,7 +79,14 @@ export default function HomeScreen() {
 
       // Try to extract a raw ID token string (may be present on OAuth flows)
       const idTokenObj = (session as any)?.tokens?.idToken;
-      const tokenStr = idTokenObj?.jwtToken ?? idTokenObj?.raw ?? idTokenObj?.token ?? null;
+      // Prefer calling toString() if available (some SDKs return a Token object)
+      const tokenStr =
+        idTokenObj?.toString?.() ??
+        idTokenObj?.jwtToken ??
+        idTokenObj?.raw ??
+        idTokenObj?.token ??
+        null;
+      console.log("Extracted ID token:", tokenStr, "from", idTokenObj);
       setJwtToken(tokenStr ?? null);
 
       setUser(userInfo);
@@ -121,22 +129,52 @@ export default function HomeScreen() {
       const apiUrl = process.env.EXPO_PUBLIC_APPLE_AUTH_API_URL;
       console.log("Calling API:", apiUrl);
 
-      const response = await fetch(
-        `${apiUrl}/apple-auth`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            identityToken: credential.identityToken,
-          }),
-        }
-      );
+      const response = await fetch(`${apiUrl}/apple-auth`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          identityToken: credential.identityToken,
+        }),
+      });
 
       console.log("API response status:", response.status);
       const responseText = await response.text();
       console.log("API response body:", responseText);
+
+      if (response.status === 409) {
+        // Provider conflict — prompt the user to sign in with the existing provider
+        try {
+          const conflict = JSON.parse(responseText);
+          const existing = conflict.existingProviders || [];
+
+          if (
+            existing.some((p: string) => p.toLowerCase().includes("google"))
+          ) {
+            Alert.alert(
+              "Account exists",
+              "An account with this email exists using Google. Would you like to sign in with Google instead?",
+              [
+                { text: "Sign in with Google", onPress: handleGoogleSignIn },
+                { text: "Cancel", style: "cancel" },
+              ]
+            );
+          } else {
+            Alert.alert(
+              "Account exists",
+              `${conflict.message}\nProviders: ${existing.join(", ")}`
+            );
+          }
+        } catch (err) {
+          Alert.alert(
+            "Account exists",
+            "An account with this email exists using a different provider."
+          );
+        }
+        setLoading(false);
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(`Backend error: ${response.status} - ${responseText}`);
@@ -186,9 +224,63 @@ export default function HomeScreen() {
 
   const handleEmailSignUp = async () => {
     try {
+      if (!username) {
+        Alert.alert("Validation Error", "Please enter a username");
+        return;
+      }
       setLoading(true);
+
+      // Pre-flight: check if the email already exists (and whether it's associated with other providers)
+      const apiUrl = process.env.EXPO_PUBLIC_APPLE_AUTH_API_URL;
+      if (apiUrl) {
+        const resp = await fetch(`${apiUrl}/check-email`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+
+        if (resp.status === 409) {
+          // Provider conflict — prompt the user to sign in with the existing provider
+          try {
+            const conflict = await resp.json();
+            const existing = conflict.existingProviders || [];
+
+            if (
+              existing.some((p: string) => p.toLowerCase().includes("google"))
+            ) {
+              Alert.alert(
+                "Account exists",
+                "An account with this email exists using Google. Would you like to sign in with Google instead?",
+                [
+                  { text: "Sign in with Google", onPress: handleGoogleSignIn },
+                  { text: "Cancel", style: "cancel" },
+                ]
+              );
+            } else {
+              Alert.alert(
+                "Account exists",
+                `${conflict.message}\nProviders: ${existing.join(", ")}`
+              );
+            }
+          } catch (err) {
+            Alert.alert(
+              "Account exists",
+              "An account with this email exists using a different provider."
+            );
+          }
+
+          setLoading(false);
+          return;
+        }
+
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(`Email check failed: ${resp.status} - ${text}`);
+        }
+      }
+
       await signUp({
-        username: email,
+        username,
         password,
         options: {
           userAttributes: {
@@ -212,7 +304,7 @@ export default function HomeScreen() {
     try {
       setLoading(true);
       await confirmSignUp({
-        username: email,
+        username,
         confirmationCode,
       });
       Alert.alert("Success", "Account confirmed! You can now sign in.");
@@ -292,6 +384,15 @@ export default function HomeScreen() {
             <Text style={styles.formTitle}>
               {authMode === "signin" ? "Sign In" : "Sign Up"}
             </Text>
+            {authMode === "signup" && (
+              <TextInput
+                style={styles.input}
+                placeholder="Username"
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+              />
+            )}
             <TextInput
               style={styles.input}
               placeholder="Email"

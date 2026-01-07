@@ -3,11 +3,22 @@ import {
   GetCredentialsForIdentityCommand,
   GetIdCommand,
 } from "@aws-sdk/client-cognito-identity";
+import {
+  AdminCreateUserCommand,
+  AdminLinkProviderForUserCommand,
+  CognitoIdentityProviderClient,
+  ListUsersCommand,
+} from "@aws-sdk/client-cognito-identity-provider";
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import jwt from "jsonwebtoken";
 import jwksClient from "jwks-rsa";
 
 const cognitoIdentity = new CognitoIdentityClient({
+  region: process.env.AWS_REGION,
+});
+
+// Client to manage the User Pool (create/link users)
+const cognitoIdp = new CognitoIdentityProviderClient({
   region: process.env.AWS_REGION,
 });
 
@@ -44,15 +55,21 @@ async function verifyAppleToken(identityToken: string): Promise<any> {
     console.info("Apple token has no aud claim");
   }
 
+  // jsonwebtoken expects audience to be a string, regex, or a tuple starting with a string/regexp.
+  const audienceOption: string | RegExp | [string | RegExp, ...(string | RegExp)[]] = 
+    allowedAudiences.length === 0
+      ? (process.env.APPLE_CLIENT_ID as string)
+      : allowedAudiences.length === 1
+      ? allowedAudiences[0]
+      : (allowedAudiences as [string, ...string[]]);
+
   return new Promise((resolve, reject) => {
     jwt.verify(
       identityToken,
       getKey,
       {
         issuer: "https://appleid.apple.com",
-        audience: allowedAudiences.length
-          ? allowedAudiences
-          : process.env.APPLE_CLIENT_ID,
+        audience: audienceOption,
       },
       (err, decoded) => {
         if (err) {
@@ -65,6 +82,113 @@ async function verifyAppleToken(identityToken: string): Promise<any> {
   });
 }
 
+// Helper: look up a user by email and extract linked providers (if any)
+async function findUserByEmail(userPoolId: string, email: string): Promise<{ username: string; providers: string[] } | null> {
+  try {
+    const list = await cognitoIdp.send(new ListUsersCommand({
+      UserPoolId: userPoolId,
+      Filter: `email = "${email}"`,
+      Limit: 1,
+    }));
+    if (!list.Users || !list.Users.length) return null;
+    const user = list.Users[0];
+    const username = user.Username!;
+
+    // Attempt to parse federated identities from 'identities' attribute
+    const identitiesAttr = user.Attributes?.find((a) => a.Name === 'identities')?.Value;
+    let providers: string[] = [];
+    if (identitiesAttr) {
+      try {
+        const identities = JSON.parse(identitiesAttr);
+        if (Array.isArray(identities)) {
+          providers = identities.map((i: any) => i.providerName).filter(Boolean);
+        }
+      } catch (err) {
+        console.warn('Failed to parse identities attribute', err);
+      }
+    }
+
+    // Fallback: infer provider from username prefix like 'Google_12345' or 'apple_...'
+    if (!providers.length && username.includes('_')) {
+      const prefix = username.split('_')[0];
+      if (prefix) providers.push(prefix);
+    }
+
+    return { username, providers };
+  } catch (err) {
+    console.warn('ListUsers failed', err);
+    return null;
+  }
+}
+
+// Ensure or create a User Pool user for this Apple identity. Return object with details or conflict info.
+async function ensureUserInUserPool(sub: string, email?: string, incomingProvider?: string, incomingEmailVerified?: boolean): Promise<{ username: string; providers: string[]; conflict?: boolean }> {
+  const userPoolId = process.env.USER_POOL_ID;
+  if (!userPoolId) throw new Error('USER_POOL_ID is not configured');
+
+  if (email) {
+    const existing = await findUserByEmail(userPoolId, email);
+    if (existing) {
+      const { username, providers } = existing;
+      // If provider list doesn't include incoming provider, and there are providers already, treat as conflict
+      const normalizedIncoming = incomingProvider ?? process.env.APPLE_PROVIDER_NAME;
+      const hasProvider = providers.some((p) => p === normalizedIncoming);
+      // Only treat as conflict if the incoming token's email is verified (prevents linking on unverified emails)
+      if (!hasProvider && providers.length && (incomingEmailVerified ?? false)) {
+        return { username, providers, conflict: true };
+      }
+
+      // Otherwise return the existing username
+      return { username, providers };
+    }
+  }
+
+  // No existing user - create one and link the provider
+  const username = `apple_${sub}`;
+  try {
+    const create = await cognitoIdp.send(
+      new AdminCreateUserCommand({
+        UserPoolId: userPoolId,
+        Username: username,
+        UserAttributes: [
+          { Name: 'email', Value: email ?? '' },
+          { Name: 'email_verified', Value: 'true' },
+        ],
+        MessageAction: 'SUPPRESS',
+      })
+    );
+
+    const createdUsername = create.User?.Username ?? username;
+
+    // Link provider for a brand new user
+    if (incomingProvider || process.env.APPLE_PROVIDER_NAME) {
+      try {
+        await cognitoIdp.send(
+          new AdminLinkProviderForUserCommand({
+            UserPoolId: userPoolId,
+            DestinationUser: {
+              ProviderName: 'Cognito',
+              ProviderAttributeName: 'Username',
+              ProviderAttributeValue: createdUsername,
+            },
+            SourceUser: {
+              ProviderName: incomingProvider ?? process.env.APPLE_PROVIDER_NAME!,
+              ProviderAttributeName: 'Cognito_Subject',
+              ProviderAttributeValue: sub,
+            },
+          })
+        );
+      } catch (err) {
+        console.warn('AdminLinkProviderForUser failed (may already be linked)', err);
+      }
+    }
+
+    return { username: createdUsername, providers: [incomingProvider ?? process.env.APPLE_PROVIDER_NAME!] };
+  } catch (err) {
+    console.error('AdminCreateUser failed', err);
+    throw err;
+  }
+}
 export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
@@ -85,6 +209,41 @@ export const handler = async (
 
     // Verify the Apple identity token
     const decodedToken = await verifyAppleToken(identityToken);
+
+    // Ensure a corresponding User Pool user exists. If there's a conflict (same email used with different provider), return a conflict response so the client can prompt the user.
+    let userPoolUsername: string | null = null;
+    if (process.env.USER_POOL_ID) {
+      try {
+        const result = await ensureUserInUserPool(
+          decodedToken.sub,
+          decodedToken.email,
+          process.env.APPLE_PROVIDER_NAME,
+          decodedToken.email_verified
+        );
+        if ((result as any).conflict) {
+          console.warn('Provider conflict detected for email:', decodedToken.email, 'existingProviders:', (result as any).providers);
+          return {
+            statusCode: 409,
+            headers: {
+              "Access-Control-Allow-Origin": "*",
+              "Access-Control-Allow-Headers": "Content-Type",
+              "Access-Control-Allow-Methods": "POST, OPTIONS",
+            },
+            body: JSON.stringify({
+              error: 'PROVIDER_CONFLICT',
+              message: 'An account with this email already exists using a different provider. Please sign in with that provider or choose to link accounts explicitly.',
+              existingProviders: (result as any).providers,
+              userPoolUsername: (result as any).username,
+            }),
+          };
+        }
+
+        userPoolUsername = (result as any).username;
+        console.info('Ensured user in User Pool:', userPoolUsername);
+      } catch (err) {
+        console.warn('Failed to ensure user in User Pool:', err);
+      }
+    }
 
     // Get Cognito Identity ID
     const getIdCommand = new GetIdCommand({
@@ -128,6 +287,7 @@ export const handler = async (
           email: decodedToken.email,
           email_verified: decodedToken.email_verified,
         },
+        userPoolUsername: userPoolUsername,
       }),
     };
   } catch (error) {
