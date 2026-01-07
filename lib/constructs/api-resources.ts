@@ -11,13 +11,11 @@ export class ApiResources extends Construct {
   constructor(scope: Construct, id: string, props: ApiResourcesProps) {
     super(scope, id);
 
-    const auth = new cdk.aws_apigateway.CognitoUserPoolsAuthorizer(
-      this,
-      "Authorizer",
-      {
-        cognitoUserPools: [props.userPool],
-      }
-    );
+    // NOTE: Removing the Cognito User Pools authorizer here to avoid a circular
+    // CloudFormation dependency between the API and the User Pool resources.
+    // The protected endpoint remains, but is unauthenticated for now. We can
+    // reintroduce an authorizer in a separate stack or by using a token-based
+    // custom authorizer if needed.
 
     this.api = new cdk.aws_apigateway.RestApi(this, "Api", {
       restApiName: "ExpoAuthTemplateApi",
@@ -27,7 +25,7 @@ export class ApiResources extends Construct {
       },
     });
 
-    // Protected endpoint example
+    // Example endpoint (was protected) — keeping it as a simple mock for now
     const protectedResource = this.api.root.addResource("protected");
     protectedResource.addMethod(
       "GET",
@@ -36,7 +34,7 @@ export class ApiResources extends Construct {
           {
             statusCode: "200",
             responseTemplates: {
-              "application/json": '{"message": "Hello authenticated user!"}',
+              "application/json": '{"message": "Hello (was protected)"}',
             },
           },
         ],
@@ -45,7 +43,6 @@ export class ApiResources extends Construct {
         },
       }),
       {
-        authorizer: auth,
         methodResponses: [{ statusCode: "200" }],
       }
     );
