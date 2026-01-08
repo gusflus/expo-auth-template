@@ -12,7 +12,12 @@ const cognitoIdp = new CognitoIdentityProviderClient({
 async function findUserByEmail(
   userPoolId: string,
   email: string
-): Promise<{ username: string; providers: string[] } | null> {
+): Promise<{
+  username: string;
+  providers: string[];
+  userStatus?: string;
+  createdAt?: number;
+} | null> {
   try {
     const list = await cognitoIdp.send(
       new ListUsersCommand({
@@ -48,7 +53,12 @@ async function findUserByEmail(
       if (prefix) providers.push(prefix);
     }
 
-    return { username, providers };
+    const userStatus = (user as any).UserStatus;
+    const createdAt = (user as any).UserCreateDate
+      ? new Date((user as any).UserCreateDate).getTime()
+      : undefined;
+
+    return { username, providers, userStatus, createdAt };
   } catch (err) {
     console.warn("ListUsers failed", err);
     return null;
@@ -90,7 +100,7 @@ export const handler = async (
       };
     }
 
-    // If we found a user, return conflict with provider info
+    // If we found a user, return conflict with provider info (include status & createdAt)
     return {
       statusCode: 409,
       headers: {
@@ -103,6 +113,8 @@ export const handler = async (
         message: "An account with this email already exists.",
         existingProviders: existing.providers,
         userPoolUsername: existing.username,
+        userStatus: existing.userStatus ?? null,
+        userCreatedAt: existing.createdAt ?? null,
       }),
     };
   } catch (err) {

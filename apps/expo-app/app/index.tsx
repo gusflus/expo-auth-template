@@ -282,6 +282,25 @@ export default function HomeScreen() {
           },
         },
       });
+      console.log("signUp succeeded (index)", { username, email });
+
+      // Persist pending signup so the confirmation step can be restored after an app restart
+      try {
+        console.log("index: attempting to persist pending signup", {
+          username,
+          email,
+        });
+        await (
+          await import("../lib/pendingSignup")
+        ).setPendingSignup({ username, password, email });
+        console.log("index: pending signup persisted for", username);
+        if (__DEV__) {
+          Alert.alert("Dev", "Pending signup persisted (index)");
+        }
+      } catch (err) {
+        console.warn("Failed to persist pending signup", err);
+      }
+
       setAuthMode("confirm");
       setLoading(false);
       Alert.alert(

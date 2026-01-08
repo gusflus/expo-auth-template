@@ -4,6 +4,7 @@ import { Hub } from "aws-amplify/utils";
 import { useRouter } from "expo-router";
 import { ReactNode, useEffect } from "react";
 import { authConfig } from "../lib/amplify-config";
+import { getPendingSignup } from "../lib/pendingSignup";
 
 // Configure Amplify
 Amplify.configure(authConfig);
@@ -108,8 +109,31 @@ export default function AuthProvider({ children }: AuthProviderProps) {
       safeNavigate("/login");
     };
 
-    // Run once on mount
-    checkProfile();
+    // Check for a pending signup first — if found, restore the confirmation flow
+    (async () => {
+      try {
+        const pending = await getPendingSignup();
+        if (pending?.username) {
+          console.log(
+            "AuthProvider: restoring pending signup",
+            pending.username
+          );
+          safeNavigate(
+            `/confirm?username=${encodeURIComponent(
+              pending.username
+            )}&password=${encodeURIComponent(
+              pending.password ?? ""
+            )}&email=${encodeURIComponent(pending.email ?? "")}`
+          );
+          return;
+        }
+      } catch (err) {
+        console.warn("Failed to read pending signup in AuthProvider", err);
+      }
+
+      // Run once on mount
+      checkProfile();
+    })();
 
     // Run on auth events (sign-in / sign-out)
     if (Hub && typeof Hub.listen === "function") {

@@ -305,6 +305,47 @@ export class AuthResources extends Construct {
       .addResource("check-email")
       .addMethod("POST", checkEmailIntegration);
 
+    // Lambda to replace an unconfirmed Cognito user (AdminDeleteUser). Use with caution.
+    const replaceUnconfirmedLambda = new cdk.aws_lambda.Function(
+      this,
+      "ReplaceUnconfirmedLambda",
+      {
+        runtime: cdk.aws_lambda.Runtime.NODEJS_20_X,
+        handler: "replace-unconfirmed.handler",
+        code: cdk.aws_lambda.Code.fromAsset(
+          path.join(__dirname, "../../lambda/dist"),
+          {
+            exclude: ["**/*.ts"],
+          }
+        ),
+        environment: {
+          USER_POOL_ID: this.userPool.userPoolId,
+        },
+        timeout: cdk.Duration.seconds(30),
+      }
+    );
+
+    replaceUnconfirmedLambda.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        effect: cdk.aws_iam.Effect.ALLOW,
+        actions: [
+          "cognito-idp:ListUsers",
+          "cognito-idp:AdminGetUser",
+          "cognito-idp:AdminDeleteUser",
+        ],
+        resources: [
+          `arn:aws:cognito-idp:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:userpool/*`,
+        ],
+      })
+    );
+
+    const replaceUnconfirmedIntegration =
+      new cdk.aws_apigateway.LambdaIntegration(replaceUnconfirmedLambda);
+
+    this.appleAuthApi.root
+      .addResource("replace-unconfirmed")
+      .addMethod("POST", replaceUnconfirmedIntegration);
+
     // If a DynamoDB users table was provided, wire up user GET/POST endpoints
     if (props?.usersTable) {
       // Grant the apple auth lambda read/write access so it can persist initial user info

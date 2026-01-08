@@ -1,4 +1,4 @@
-import { confirmSignUp, signIn } from "aws-amplify/auth";
+import { confirmSignUp, resendSignUpCode, signIn } from "aws-amplify/auth";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -9,6 +9,11 @@ import {
   TextInput,
   TouchableOpacity,
 } from "react-native";
+import {
+  clearPendingSignup,
+  getPendingSignup,
+  setPendingSignup,
+} from "../lib/pendingSignup";
 
 export default function ConfirmScreen() {
   const router = useRouter();
@@ -19,12 +24,82 @@ export default function ConfirmScreen() {
 
   const [confirmationCode, setConfirmationCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendDisabled, setResendDisabled] = useState(false);
+
+  const handleResend = async () => {
+    try {
+      setResendLoading(true);
+      setResendDisabled(true);
+      // Ensure we have a username to resend for (either from params or persisted pending signup)
+      let target = username;
+      if (!target) {
+        try {
+          const stored = await getPendingSignup();
+          target = stored?.username ?? "";
+        } catch (err) {
+          console.warn("Failed to read pending signup during resend", err);
+        }
+      }
+
+      if (!target) {
+        Alert.alert("Error", "No username available to resend code for.");
+        setResendLoading(false);
+        setResendDisabled(false);
+        return;
+      }
+
+      await resendSignUpCode({ username: target });
+
+      try {
+        await setPendingSignup({
+          username: target,
+          password,
+          email: emailParam ?? target,
+        });
+      } catch (err) {
+        console.warn("Failed to persist pending signup on resend", err);
+      }
+
+      Alert.alert(
+        "Code Sent",
+        "A new confirmation code has been sent to your email."
+      );
+
+      // Cooldown the button for 30s
+      setTimeout(() => setResendDisabled(false), 30 * 1000);
+    } catch (err: any) {
+      console.warn("Resend code failed", err);
+      Alert.alert("Resend Error", err?.message ?? String(err));
+      setResendDisabled(false);
+    } finally {
+      setResendLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // If there's no username param, send back to login
-    if (!username) {
+    // If there's no username param, try to restore from persisted pending signup; otherwise send back to login
+    (async () => {
+      if (username) return;
+      try {
+        const pending = await getPendingSignup();
+        if (pending?.username) {
+          // Restore confirmation flow using stored values
+          router.replace(
+            `/confirm?username=${encodeURIComponent(
+              pending.username
+            )}&password=${encodeURIComponent(
+              pending.password ?? ""
+            )}&email=${encodeURIComponent(pending.email ?? "")}`
+          );
+          return;
+        }
+      } catch (err) {
+        console.warn("Failed to read pending signup", err);
+      }
+
       router.replace("/login");
-    }
+    })();
   }, [username, router]);
 
   const handleConfirm = async () => {
@@ -36,12 +111,31 @@ export default function ConfirmScreen() {
       if (password) {
         try {
           await signIn({ username, password });
+          // Clear persisted pending signup now that the account is confirmed
+          try {
+            await clearPendingSignup();
+          } catch (err) {
+            console.warn(
+              "Failed to clear pending signup after auto sign-in",
+              err
+            );
+          }
+
           // After sign-in, prompt user to complete any missing profile fields
           router.replace("/complete-profile");
           return;
         } catch (err: any) {
           console.warn("Auto sign-in failed after confirmation:", err);
           // If sign in fails, show message and redirect to login
+          try {
+            await clearPendingSignup();
+          } catch (err) {
+            console.warn(
+              "Failed to clear pending signup after confirmation",
+              err
+            );
+          }
+
           Alert.alert(
             "Confirmed",
             "Account confirmed successfully. Please sign in."
@@ -50,6 +144,15 @@ export default function ConfirmScreen() {
           return;
         }
       } else {
+        try {
+          await clearPendingSignup();
+        } catch (err) {
+          console.warn(
+            "Failed to clear pending signup after confirmation",
+            err
+          );
+        }
+
         Alert.alert(
           "Confirmed",
           "Account confirmed successfully. Please sign in."
@@ -90,7 +193,26 @@ export default function ConfirmScreen() {
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.replace("/login")}>
+      <TouchableOpacity
+        style={[styles.button, resendDisabled ? { opacity: 0.6 } : {}]}
+        onPress={handleResend}
+        disabled={resendLoading || resendDisabled}
+      >
+        <Text style={styles.buttonText}>
+          {resendLoading ? "Sending..." : "Resend Code"}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={async () => {
+          try {
+            await clearPendingSignup();
+          } catch (err) {
+            console.warn("Failed to clear pending signup on cancel", err);
+          }
+          router.replace("/login");
+        }}
+      >
         <Text style={styles.linkText}>Back to Sign In</Text>
       </TouchableOpacity>
     </ScrollView>

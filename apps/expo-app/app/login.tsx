@@ -1,4 +1,9 @@
-import { signIn, signInWithRedirect, signUp } from "aws-amplify/auth";
+import {
+  resendSignUpCode,
+  signIn,
+  signInWithRedirect,
+  signUp,
+} from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useRouter } from "expo-router";
@@ -12,6 +17,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import {
+  clearPendingSignup,
+  getPendingSignup,
+  setPendingSignup,
+} from "../lib/pendingSignup";
 
 type AuthMode = "signin" | "signup" | "confirm";
 
@@ -33,6 +43,26 @@ export default function LoginScreen() {
     });
     setLoading(false);
     return () => hubListener();
+  }, [router]);
+
+  // Defensive check: if a pending signup exists on app start, restore the confirm flow
+  useEffect(() => {
+    (async () => {
+      try {
+        const pending = await getPendingSignup();
+        if (pending?.username) {
+          router.replace(
+            `/confirm?username=${encodeURIComponent(
+              pending.username
+            )}&password=${encodeURIComponent(
+              pending.password ?? ""
+            )}&email=${encodeURIComponent(pending.email ?? "")}`
+          );
+        }
+      } catch (err) {
+        console.warn("Failed to read pending signup in Login mount", err);
+      }
+    })();
   }, [router]);
 
   const handleGoogleSignIn = async () => {
@@ -110,7 +140,234 @@ export default function LoginScreen() {
       await signIn({ username: email, password });
       router.replace("/logged-in");
     } catch (error: any) {
-      Alert.alert("Sign In Error", error.message);
+      const msg = error?.message ?? String(error);
+
+      // If the user exists but the email is unconfirmed, resend the code and take them to the confirm screen
+      if (
+        error?.code === "UserNotConfirmedException" ||
+        /not confirm/i.test(msg)
+      ) {
+        try {
+          await resendSignUpCode({ username: email });
+        } catch (err) {
+          console.warn("resendSignUpCode failed:", err);
+        }
+
+        try {
+          await setPendingSignup({ username: email, password, email });
+        } catch (err) {
+          console.warn("Failed to persist pending signup on resend", err);
+        }
+
+        router.push(
+          `/confirm?username=${encodeURIComponent(
+            email
+          )}&password=${encodeURIComponent(
+            password
+          )}&email=${encodeURIComponent(email)}`
+        );
+
+        Alert.alert(
+          "Confirmation Required",
+          "Your account is not confirmed. A new confirmation code has been sent to your email."
+        );
+        setLoading(false);
+        return;
+      }
+
+      // If user not found while a pending signup exists for this input, restore confirmation flow instead
+      if (
+        error?.code === "UserNotFoundException" ||
+        /does not exist|not found|user not found/i.test(msg)
+      ) {
+        try {
+          const pending = await getPendingSignup();
+          if (
+            pending &&
+            (pending.email === email || pending.username === email)
+          ) {
+            const target = pending.username ?? email;
+            try {
+              await resendSignUpCode({ username: target });
+            } catch (err) {
+              console.warn(
+                "resendSignUpCode failed in not-found recovery:",
+                err
+              );
+            }
+
+            try {
+              await setPendingSignup({
+                username: target,
+                password: pending.password ?? password,
+                email: pending.email ?? email,
+              });
+            } catch (err) {
+              console.warn(
+                "Failed to persist pending signup during recovery",
+                err
+              );
+            }
+
+            router.push(
+              `/confirm?username=${encodeURIComponent(
+                target
+              )}&password=${encodeURIComponent(
+                pending.password ?? password
+              )}&email=${encodeURIComponent(pending.email ?? email)}`
+            );
+
+            Alert.alert(
+              "Complete Signup",
+              "We found an unfinished signup for this account. A confirmation code was sent to the email on file."
+            );
+            setLoading(false);
+            return;
+          }
+
+          // No locally-saved pending signup matched — try backend email lookup to find the Cognito username for this email
+          const apiUrl = process.env.EXPO_PUBLIC_APPLE_AUTH_API_URL;
+          if (apiUrl && email) {
+            try {
+              const resp = await fetch(`${apiUrl}/check-email`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email }),
+              });
+
+              if (resp.status === 409) {
+                const conflict = await resp.json().catch(() => null);
+                const poolUsername = conflict?.userPoolUsername;
+                console.log("check-email response: 409", {
+                  poolUsername,
+                  conflict,
+                });
+                if (poolUsername) {
+                  try {
+                    await resendSignUpCode({ username: poolUsername });
+                  } catch (err) {
+                    console.warn(
+                      "resendSignUpCode failed for pooled username:",
+                      err
+                    );
+                  }
+
+                  try {
+                    await setPendingSignup({
+                      username: poolUsername,
+                      password,
+                      email,
+                    });
+                  } catch (err) {
+                    console.warn(
+                      "Failed to persist pending signup during backend recovery",
+                      err
+                    );
+                  }
+
+                  router.push(
+                    `/confirm?username=${encodeURIComponent(
+                      poolUsername
+                    )}&password=${encodeURIComponent(
+                      password
+                    )}&email=${encodeURIComponent(email)}`
+                  );
+
+                  Alert.alert(
+                    "Complete Signup",
+                    "We found an unfinished signup for this email address. A confirmation code was sent to that email."
+                  );
+                  setLoading(false);
+                  return;
+                }
+              }
+            } catch (err) {
+              console.warn(
+                "check-email lookup failed during sign-in recovery",
+                err
+              );
+            }
+          }
+        } catch (err) {
+          console.warn(
+            "Error checking pending signup during sign-in recovery",
+            err
+          );
+        }
+      }
+
+      // If a pending signup exists for these credentials, restore the confirm flow (defensive fallback)
+      try {
+        const pending = await getPendingSignup();
+        if (
+          pending &&
+          (pending.email === email || pending.username === email)
+        ) {
+          const target = pending.username ?? email;
+          try {
+            await resendSignUpCode({ username: target });
+          } catch (err) {
+            console.warn("resendSignUpCode failed in fallback:", err);
+          }
+
+          try {
+            await setPendingSignup({
+              username: target,
+              password: pending.password ?? password,
+              email: pending.email ?? email,
+            });
+          } catch (err) {
+            console.warn(
+              "Failed to persist pending signup during fallback",
+              err
+            );
+          }
+
+          router.push(
+            `/confirm?username=${encodeURIComponent(
+              target
+            )}&password=${encodeURIComponent(
+              pending.password ?? password
+            )}&email=${encodeURIComponent(pending.email ?? email)}`
+          );
+
+          Alert.alert(
+            "Complete Signup",
+            "We found an unfinished signup for this account. A confirmation code was sent to the email on file."
+          );
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("Error checking pending signup fallback", err);
+      }
+
+      // As a last resort, try resending using the supplied identifier (email or username)
+      try {
+        await resendSignUpCode({ username: email });
+        await setPendingSignup({ username: email, password, email });
+        router.push(
+          `/confirm?username=${encodeURIComponent(
+            email
+          )}&password=${encodeURIComponent(
+            password
+          )}&email=${encodeURIComponent(email)}`
+        );
+        Alert.alert(
+          "Confirmation Required",
+          "An unfinished signup was located. A confirmation code has been sent to that identifier."
+        );
+        setLoading(false);
+        return;
+      } catch (err) {
+        console.debug(
+          "resendSignUpCode fallback did not succeed for identifier",
+          email,
+          err
+        );
+      }
+
+      Alert.alert("Sign In Error", msg);
       setLoading(false);
     }
   };
@@ -134,6 +391,75 @@ export default function LoginScreen() {
 
         if (resp.status === 409) {
           const conflict = await resp.json().catch(() => null);
+
+          // If the email maps to an unconfirmed Cognito user, automatically replace it (delete old UNCONFIRMED account and continue)
+          if (conflict?.userStatus === "UNCONFIRMED") {
+            console.log(
+              "check-email: unconfirmed account found; attempting replace",
+              { userPoolUsername: conflict?.userPoolUsername }
+            );
+            try {
+              const replaceResp = await fetch(`${apiUrl}/replace-unconfirmed`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email }),
+              });
+
+              if (replaceResp.ok) {
+                console.log("replace-unconfirmed succeeded for", email);
+                // After replacing, retry signUp with the new credentials
+                try {
+                  await signUp({
+                    username,
+                    password,
+                    options: { userAttributes: { email } },
+                  });
+                  console.log("signUp succeeded after replace", {
+                    username,
+                    email,
+                  });
+
+                  try {
+                    await setPendingSignup({ username, password, email });
+                  } catch (err) {
+                    console.warn(
+                      "Failed to persist pending signup after replace",
+                      err
+                    );
+                  }
+
+                  router.push(
+                    `/confirm?username=${encodeURIComponent(
+                      username
+                    )}&password=${encodeURIComponent(
+                      password
+                    )}&email=${encodeURIComponent(email)}`
+                  );
+                  setLoading(false);
+                  Alert.alert(
+                    "Success",
+                    "Recreated account and sent confirmation code. Please check your email."
+                  );
+                  return;
+                } catch (err: any) {
+                  console.warn("Sign up failed after replace-unconfirmed", err);
+                  // Fall through to show conflict message below
+                }
+              } else {
+                const text = await replaceResp.text().catch(() => null);
+                console.warn(
+                  "replace-unconfirmed failed",
+                  replaceResp.status,
+                  text
+                );
+                // Fall through to normal messaging
+              }
+            } catch (err) {
+              console.warn("replace-unconfirmed request failed", err);
+              // Fall through to normal messaging
+            }
+          }
+
           const existing = (conflict?.existingProviders || []) as string[];
           if (existing.some((p) => p.toLowerCase().includes("google"))) {
             Alert.alert(
@@ -165,6 +491,23 @@ export default function LoginScreen() {
         password,
         options: { userAttributes: { email } },
       });
+      console.log("signUp succeeded", { username, email });
+
+      // Persist pending signup so the confirmation screen can be restored if the app is quit
+      try {
+        console.log("attempting to persist pending signup", {
+          username,
+          email,
+        });
+        await setPendingSignup({ username, password, email });
+        console.log("pending signup persisted for", username);
+        if (__DEV__) {
+          Alert.alert("Dev", "Pending signup persisted");
+        }
+      } catch (err) {
+        console.warn("Failed to persist pending signup", err);
+      }
+
       // Redirect to the confirmation page and pass the temporary credentials so we can sign-in automatically
       router.push(
         `/confirm?username=${encodeURIComponent(
@@ -179,7 +522,105 @@ export default function LoginScreen() {
         "Please check your email for the confirmation code"
       );
     } catch (error: any) {
-      Alert.alert("Sign Up Error", error.message);
+      const msg = error?.message ?? String(error);
+
+      // If username already exists, it may be an unfinished signup — try to resend code and take them to confirm
+      if (
+        error?.code === "UsernameExistsException" ||
+        /already exists|user exists/i.test(msg)
+      ) {
+        const target = username || email;
+        // First, try the naive resend (username field) — it might succeed if they used username directly
+        try {
+          await resendSignUpCode({ username: target });
+          await setPendingSignup({ username: target, password, email });
+
+          router.push(
+            `/confirm?username=${encodeURIComponent(
+              target
+            )}&password=${encodeURIComponent(
+              password
+            )}&email=${encodeURIComponent(email)}`
+          );
+
+          Alert.alert(
+            "Confirmation Required",
+            "An account with that username/email already exists but is not confirmed. A new confirmation code has been sent."
+          );
+          setLoading(false);
+          return;
+        } catch (err: any) {
+          console.warn(
+            "Resend attempt failed during signup error handling (naive):",
+            err
+          );
+          // If that fails, try looking up the username by email on the backend
+          const apiUrl = process.env.EXPO_PUBLIC_APPLE_AUTH_API_URL;
+          if (apiUrl && email) {
+            try {
+              const resp = await fetch(`${apiUrl}/check-email`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email }),
+              });
+
+              if (resp.status === 409) {
+                const conflict = await resp.json().catch(() => null);
+                const poolUsername = conflict?.userPoolUsername;
+                console.log(
+                  "check-email response during signup recovery: 409",
+                  { poolUsername, conflict }
+                );
+                if (poolUsername) {
+                  try {
+                    await resendSignUpCode({ username: poolUsername });
+                  } catch (err: any) {
+                    console.warn(
+                      "Resend attempt failed during signup error handling (backend lookup):",
+                      err
+                    );
+                  }
+
+                  try {
+                    await setPendingSignup({
+                      username: poolUsername,
+                      password,
+                      email,
+                    });
+                  } catch (err) {
+                    console.warn(
+                      "Failed to persist pending signup during backend recovery (signup)",
+                      err
+                    );
+                  }
+
+                  router.push(
+                    `/confirm?username=${encodeURIComponent(
+                      poolUsername
+                    )}&password=${encodeURIComponent(
+                      password
+                    )}&email=${encodeURIComponent(email)}`
+                  );
+
+                  Alert.alert(
+                    "Confirmation Required",
+                    "An account with that email exists but is not confirmed. A new confirmation code has been sent."
+                  );
+                  setLoading(false);
+                  return;
+                }
+              }
+            } catch (err) {
+              console.warn(
+                "check-email lookup failed during signup recovery",
+                err
+              );
+            }
+          }
+        }
+      }
+
+      Alert.alert("Sign Up Error", msg);
       setLoading(false);
     }
   };
@@ -261,6 +702,37 @@ export default function LoginScreen() {
               : "Already have an account? Sign In"}
           </Text>
         </TouchableOpacity>
+
+        {__DEV__ && (
+          <TouchableOpacity
+            onPress={async () => {
+              try {
+                const pending = await getPendingSignup();
+                Alert.alert(
+                  "Pending Signup",
+                  pending ? JSON.stringify(pending, null, 2) : "<none>",
+                  [
+                    {
+                      text: "Clear",
+                      style: "destructive",
+                      onPress: async () => {
+                        await clearPendingSignup();
+                        Alert.alert("Cleared");
+                      },
+                    },
+                    { text: "OK", style: "cancel" },
+                  ]
+                );
+              } catch (err) {
+                Alert.alert("Error", "Failed to read pending signup");
+              }
+            }}
+          >
+            <Text style={[styles.linkText, { color: "#999" }]}>
+              Dev: View Pending Signup
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </ScrollView>
   );
