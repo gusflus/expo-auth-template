@@ -105,9 +105,8 @@ export class AuthResources extends Construct {
             cdk.aws_cognito.OAuthScope.OPENID,
             cdk.aws_cognito.OAuthScope.PROFILE,
           ],
-          // TODO: if remove next-app remove localhost:3000 urls
-          callbackUrls: ["http://localhost:3000/", "exp://localhost:8081/--/"],
-          logoutUrls: ["http://localhost:3000/", "exp://localhost:8081/--/"],
+          callbackUrls: ["exp://localhost:8081/--/"],
+          logoutUrls: ["exp://localhost:8081/--/"],
         },
         supportedIdentityProviders: [
           cdk.aws_cognito.UserPoolClientIdentityProvider.COGNITO,

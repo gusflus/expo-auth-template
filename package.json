@@ -28,7 +28,6 @@
   "workspaces": {
     "packages": [
       "apps/expo-app",
-      "apps/next-app",
       "lambda"
     ]
   }
