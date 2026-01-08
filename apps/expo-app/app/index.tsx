@@ -321,7 +321,7 @@ export default function HomeScreen() {
     }
   };
 
-  // Redirecting behavior: check if user is authenticated and route to the proper page
+  // Check auth state locally (no navigation here — `AuthProvider` will perform redirects)
   useEffect(() => {
     (async () => {
       try {
@@ -333,13 +333,12 @@ export default function HomeScreen() {
           idTokenObj?.raw ??
           idTokenObj?.token ??
           null;
-        if (tokenStr) router.replace("/logged-in");
-        else router.replace("/login");
+        setJwtToken(tokenStr ?? null);
       } catch (err) {
-        router.replace("/login");
+        setJwtToken(null);
       }
     })();
-  }, [router]);
+  }, []);
 
   return (
     <View style={styles.container}>

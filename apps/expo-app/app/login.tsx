@@ -26,9 +26,7 @@ export default function LoginScreen() {
   useEffect(() => {
     // Listen for auth events (OAuth redirect flows)
     const hubListener = Hub.listen("auth", ({ payload }) => {
-      if (payload.event === "signInWithRedirect") {
-        router.replace("/logged-in");
-      }
+      // No direct navigation here — AuthProvider handles redirects centrally
       if (payload.event === "signedOut") {
         // noop
       }

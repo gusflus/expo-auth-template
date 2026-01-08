@@ -36,7 +36,8 @@ export default function ConfirmScreen() {
       if (password) {
         try {
           await signIn({ username, password });
-          router.replace("/logged-in");
+          // After sign-in, prompt user to complete any missing profile fields
+          router.replace("/complete-profile");
           return;
         } catch (err: any) {
           console.warn("Auto sign-in failed after confirmation:", err);

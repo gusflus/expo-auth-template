@@ -42,9 +42,37 @@ export const handler = async (
       const resp = await ddb.send(
         new GetCommand({ TableName: TABLE, Key: { sub } })
       );
+      const item = resp.Item ?? null;
+
+      // If we found a user, check completeness
+      if (item) {
+        const missing: string[] = [];
+        if (!item.username) missing.push("username");
+        if (!item.email) missing.push("email");
+        if (!item.firstName) missing.push("firstName");
+        if (!item.lastName) missing.push("lastName");
+
+        if (missing.length) {
+          return {
+            statusCode: 403,
+            headers: {
+              "Access-Control-Allow-Origin": "*",
+              "Access-Control-Allow-Headers": "Content-Type",
+              "Access-Control-Allow-Methods": "GET, OPTIONS",
+            },
+            body: JSON.stringify({ code: "PROFILE_INCOMPLETE", missing, item }),
+          };
+        }
+      }
+
       return {
         statusCode: 200,
-        body: JSON.stringify({ item: resp.Item }),
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+        },
+        body: JSON.stringify({ item }),
       };
     }
 
@@ -59,13 +87,47 @@ export const handler = async (
           Limit: 1,
         })
       );
+      const item = scanResp.Items?.[0] ?? null;
+      if (item) {
+        const missing: string[] = [];
+        if (!item.username) missing.push("username");
+        if (!item.email) missing.push("email");
+        if (!item.firstName) missing.push("firstName");
+        if (!item.lastName) missing.push("lastName");
+
+        if (missing.length) {
+          return {
+            statusCode: 403,
+            headers: {
+              "Access-Control-Allow-Origin": "*",
+              "Access-Control-Allow-Headers": "Content-Type",
+              "Access-Control-Allow-Methods": "GET, OPTIONS",
+            },
+            body: JSON.stringify({ code: "PROFILE_INCOMPLETE", missing, item }),
+          };
+        }
+      }
+
       return {
         statusCode: 200,
-        body: JSON.stringify({ item: scanResp.Items?.[0] ?? null }),
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+        },
+        body: JSON.stringify({ item }),
       };
     }
 
-    return { statusCode: 200, body: JSON.stringify({ item: null }) };
+    return {
+      statusCode: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+      },
+      body: JSON.stringify({ item: null }),
+    };
   } catch (err) {
     console.error("get-user error", err);
     return { statusCode: 500, body: JSON.stringify({ error: "Internal" }) };
