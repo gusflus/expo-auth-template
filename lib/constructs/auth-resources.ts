@@ -69,7 +69,9 @@ export class AuthResources extends Construct {
         clientId: process.env.APPLE_CLIENT_ID!,
         teamId: process.env.APPLE_TEAM_ID!,
         keyId: process.env.APPLE_KEY_ID!,
-        privateKey: process.env.APPLE_PRIVATE_KEY!,
+        privateKeyValue: cdk.SecretValue.unsafePlainText(
+          process.env.APPLE_PRIVATE_KEY!
+        ),
         scopes: ["email", "name"],
         attributeMapping: {
           email: cdk.aws_cognito.ProviderAttribute.APPLE_EMAIL,
@@ -108,6 +110,7 @@ export class AuthResources extends Construct {
           cdk.aws_cognito.UserPoolClientIdentityProvider.GOOGLE,
           cdk.aws_cognito.UserPoolClientIdentityProvider.APPLE,
         ],
+        refreshTokenValidity: cdk.Duration.days(365),
       }
     );
 
