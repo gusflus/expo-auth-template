@@ -9,17 +9,9 @@ import {
 } from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
 import * as AppleAuthentication from "expo-apple-authentication";
-import { useEffect, useState } from "react";
 import { useRouter } from "expo-router";
-import {
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, StyleSheet, Text, View } from "react-native";
 
 type AuthMode = "signin" | "signup" | "confirm";
 
@@ -335,11 +327,16 @@ export default function HomeScreen() {
       try {
         const session = await fetchAuthSession();
         const idTokenObj = (session as any)?.tokens?.idToken;
-        const tokenStr = idTokenObj?.toString?.() ?? idTokenObj?.jwtToken ?? idTokenObj?.raw ?? idTokenObj?.token ?? null;
-        if (tokenStr) router.replace('/logged-in');
-        else router.replace('/login');
+        const tokenStr =
+          idTokenObj?.toString?.() ??
+          idTokenObj?.jwtToken ??
+          idTokenObj?.raw ??
+          idTokenObj?.token ??
+          null;
+        if (tokenStr) router.replace("/logged-in");
+        else router.replace("/login");
       } catch (err) {
-        router.replace('/login');
+        router.replace("/login");
       }
     })();
   }, [router]);

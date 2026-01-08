@@ -1,7 +1,15 @@
 import { fetchAuthSession, getCurrentUser, signOut } from "aws-amplify/auth";
-import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import {
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 export default function LoggedInScreen() {
   const router = useRouter();
@@ -15,9 +23,24 @@ export default function LoggedInScreen() {
         const currentUser = await getCurrentUser();
         const session = await fetchAuthSession();
         const idTokenObj = (session as any)?.tokens?.idToken;
-        const tokenStr = idTokenObj?.toString?.() ?? idTokenObj?.jwtToken ?? idTokenObj?.raw ?? idTokenObj?.token ?? null;
+        const tokenStr =
+          idTokenObj?.toString?.() ??
+          idTokenObj?.jwtToken ??
+          idTokenObj?.raw ??
+          idTokenObj?.token ??
+          null;
         setJwtToken(tokenStr ?? null);
-        setUser({ userId: currentUser.userId, username: currentUser.username, attributes: (idTokenObj?.payload) ? { email: idTokenObj.payload.email, name: idTokenObj.payload.name, given_name: idTokenObj.payload.given_name } : {} });
+        setUser({
+          userId: currentUser.userId,
+          username: currentUser.username,
+          attributes: idTokenObj?.payload
+            ? {
+                email: idTokenObj.payload.email,
+                name: idTokenObj.payload.name,
+                given_name: idTokenObj.payload.given_name,
+              }
+            : {},
+        });
       } catch (err) {
         console.warn("Not authenticated, redirecting to login", err);
         router.replace("/login");
@@ -37,9 +60,12 @@ export default function LoggedInScreen() {
     }
   };
 
-  if (loading) return (
-    <View style={styles.container}><Text>Loading...</Text></View>
-  );
+  if (loading)
+    return (
+      <View style={styles.container}>
+        <Text>Loading...</Text>
+      </View>
+    );
 
   return (
     <ScrollView style={styles.container}>
@@ -59,7 +85,12 @@ export default function LoggedInScreen() {
 
       <View style={styles.userInfo}>
         <Text style={styles.sectionTitle}>JWT</Text>
-        <TextInput style={[styles.input, { height: 120 }]} multiline value={jwtToken ?? ""} editable={false} />
+        <TextInput
+          style={[styles.input, { height: 120 }]}
+          multiline
+          value={jwtToken ?? ""}
+          editable={false}
+        />
       </View>
     </ScrollView>
   );
@@ -67,11 +98,33 @@ export default function LoggedInScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: "#f5f5f5" },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: "bold", marginBottom: 20, textAlign: "center" },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 20,
+    textAlign: "center",
+  },
   sectionTitle: { fontSize: 18, fontWeight: "600", marginBottom: 10 },
-  userInfo: { backgroundColor: "white", padding: 16, borderRadius: 8, marginBottom: 12 },
-  input: { backgroundColor: "#fff", borderRadius: 6, padding: 10, marginBottom: 12, borderWidth: 1, borderColor: "#ddd" },
+  userInfo: {
+    backgroundColor: "white",
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  input: {
+    backgroundColor: "#fff",
+    borderRadius: 6,
+    padding: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
   signOutButton: { backgroundColor: "#ff3b30", padding: 8, borderRadius: 6 },
   buttonText: { color: "#fff", fontWeight: "600" },
 });
