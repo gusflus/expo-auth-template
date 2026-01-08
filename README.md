@@ -1,24 +1,136 @@
-# Welcome to your CDK TypeScript project
+# Expo Auth Template — Overview & Docs ✨
 
-This is a blank project for CDK development with TypeScript.
+A compact example app demonstrating Cognito-based authentication, provider sign-in (Google & Apple), a simple Datastore (DynamoDB "Users" table), and an Expo client which enforces a "profile complete" workflow.
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+---
 
-## Useful commands
+## Table of contents
 
-- `npm run build` compile typescript to js
-- `npm run watch` watch for changes and compile
-- `npm run test` perform the jest unit tests
-- `npx cdk deploy` deploy this stack to your default AWS account/region
-- `npx cdk diff` compare deployed stack with current state
-- `npx cdk synth` emits the synthesized CloudFormation template
+- [What this repository contains](#what-this-repository-contains) ✅
+- [Architecture](#architecture)
+- [Local development](#local-development)
+- [Environment variables](#environment-variables)
+- [Important flows](#important-flows)
+- [Deployment and CDK notes](#deployment-and-cdk-notes)
+- [Troubleshooting and tips](#troubleshooting-and-tips)
 
-<!-- notes -->
+---
 
-<!-- https://docs.aws.amazon.com/cognito/latest/developerguide/apple.html -->
+## What this repository contains
 
-<!-- From your App Store Console, get:
-- **APPLE_CLIENT_ID**: Your Services ID (e.g., com.yourapp.service)
-- **APPLE_TEAM_ID**: Your Team ID
-- **APPLE_KEY_ID**: Your Sign in with Apple Key ID
-- **APPLE_PRIVATE_KEY**: The private key from your .p8 file -->
+- `lib/constructs/*` — CDK constructs for **AuthResources** (Cognito + Identity Pool + client) and **DatastoreResources** (Dynamo Users table).
+- `lambda/` — Lambda handlers packed and deployed by CDK (Apple auth, get-user, update-user, post-confirm, check-email, etc.).
+- `apps/expo-app/` — Expo (React Native) client demonstrating sign-up, confirmation, OAuth provider flows, and profile completion pages.
+- CDK app entrypoint at `bin/expo-auth-template.ts` and stack in `lib/`.
+
+---
+
+## Architecture
+
+High level:
+
+- Cognito User Pool + Identity Pool manage authentication.
+- OAuth providers (Google, Apple) configured on the User Pool.
+- Post-confirmation and provider flows call Lambda handlers to upsert user rows into a DynamoDB `Users` table.
+- An API (via Lambda + API Gateway) exposes endpoints for `GET /user` and `POST /user` to read and update profile data.
+- The Expo app uses Amplify for client auth flows and calls the API to enforce a `profile_complete` workflow.
+
+Data model: DynamoDB Users table keyed by `sub` (Cognito subject). A GSI on `email` is available for lookups.
+
+---
+
+## Local development
+
+Prereqs:
+
+- Node.js (16+ recommended), Yarn (Berry), TypeScript
+- AWS CLI configured with credentials for the target account/region
+- Expo CLI for testing client
+
+Useful commands:
+
+- Install deps: `yarn install`
+- Build CDK (compile lambdas): `yarn cdk:build`
+- CDK diff (no deploy): `yarn cdk diff --app "npx ts-node bin/expo-auth-template.ts"`
+- CDK deploy: `yarn cdk:deploy --require-approval never`
+- Run unit tests: `yarn test`
+- Start Expo app (from `apps/expo-app`): `yarn workspace expo-app start` (or use `expo start`)
+
+Notes:
+
+- The Expo client uses `exp://localhost:8081/--/` for callbacks during local testing; Cognito client callback/logout URLs are set for this flow.
+
+---
+
+## Environment variables
+
+Set these in your environment or CI before `cdk deploy` or local run of Lambdas. Example names (used in CDK):
+
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+- `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_BUNDLE_ID` (or `APPLE_SERVICE_ID`)
+- `APPLE_PROVIDER_NAME` (optional)
+
+Also, CDK will create resources with ARNs and environment injection for Lambdas (e.g., `USERS_TABLE_NAME` when Datastore construct is included).
+
+---
+
+## Important flows
+
+1. Sign-up → Confirm → Auto sign-in → Profile completion
+
+   - After sign-up, the user confirms via code on the `/confirm` page and the app attempts to sign them in automatically.
+   - If the user is missing required attributes (email, firstName, lastName, username), the client redirects them to `/complete-profile` and posts the data to `POST /user` to persist in Dynamo and optionally sync to Cognito.
+
+2. Provider sign-in (Google / Apple)
+
+   - Provider attributes are mapped into Cognito via the configured identity provider mapping.
+   - The Apple/Google handler upserts a user record into the `Users` table with available attributes.
+   - If attributes are missing, the client prompts the user to complete them.
+
+3. Profile enforcement
+   - Server `GET /user` returns `403` with `{ code: "PROFILE_INCOMPLETE", missing: [...] }` when required fields are missing.
+   - Client top-level guard checks `GET /user` and redirects to `/complete-profile` if needed.
+
+Security nuance:
+
+- To avoid a CloudFormation circular dependency (User Pool PostConfirmation trigger referencing a Lambda role that references the User Pool), the project uses a wildcard userpool ARN in specific lambda IAM policies (this breaks the direct circular reference). If you refactor triggers or roles, be mindful of that cycle.
+
+---
+
+## Deployment and CDK notes
+
+Recommended merge order for safe rollouts (what we used here):
+
+1. **Merge CDK/infra changes first** (so the infrastructure is in place/updated). Run `cdk diff` and review changes.
+2. **Merge application/client code** afterwards, then run smoke tests.
+
+When deploying:
+
+- Always run `yarn cdk:build` to bundle lambda artifacts before diff/deploy.
+- Use `yarn cdk diff` to inspect changes. Pay special attention to IAM and Cognito changes which may affect user flows.
+- Use `cdk deploy` from a machine with the right AWS credentials and confirm any destructive changes before proceeding.
+
+---
+
+## Troubleshooting and tips
+
+- Circular dependency errors in CloudFormation involving the User Pool PostConfirmation trigger can often be resolved by removing tight role-to-resource references (we used a wildcard pool ARN in the lambda policy).
+- If OAuth inflows are flaky locally: ensure the Cognito client callback/logout URLs include your local Expo redirect URL (`exp://localhost:8081/--/`) and retry sign-in if tokens are not present immediately after redirect (we added a small retry/backoff in the client).
+- Inspect CloudWatch logs for Lambda-specific failures and Cognito console for user pool events.
+
+---
+
+## Misc
+
+- `apps/next-app` was used previously for a web client; it has been backed up and removed from the workspace to simplify the monorepo. If needed, you can find a backup in `backups/`.
+
+---
+
+## Contributing & support
+
+- Create a branch, open a PR, and include `yarn cdk diff` output for infra changes if applicable.
+- For CI: ensure tests and `yarn cdk:build` run in pipeline before deployment.
+
+---
+
+If you'd like, I can also add a short `README.AuthStore.md` that documents the `Users` table schema, or a `DEPLOY.md` with explicit CDK commands and safety checks. Want me to add either? 💡
