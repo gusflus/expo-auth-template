@@ -41,7 +41,8 @@ export default function AuthProvider({ children }: AuthProviderProps) {
           console.debug("AuthProvider: checking profile (attempt)", attempt);
           const session = await fetchAuthSession();
           const idTokenObj = (session as any)?.tokens?.idToken;
-          const sub = idTokenObj?.payload?.sub || (await getCurrentUser())?.userId;
+          const sub =
+            idTokenObj?.payload?.sub || (await getCurrentUser())?.userId;
           console.debug("AuthProvider: sub=", sub);
 
           if (!sub) {
@@ -56,10 +57,13 @@ export default function AuthProvider({ children }: AuthProviderProps) {
 
           if (!API_BASE) return;
 
-          const resp = await fetch(`${API_BASE}/user?sub=${encodeURIComponent(sub)}`, {
-            method: "GET",
-            headers: { "Content-Type": "application/json" },
-          });
+          const resp = await fetch(
+            `${API_BASE}/user?sub=${encodeURIComponent(sub)}`,
+            {
+              method: "GET",
+              headers: { "Content-Type": "application/json" },
+            }
+          );
 
           console.debug("AuthProvider: get-user status=", resp.status);
           if (resp.status === 403) {
@@ -72,7 +76,10 @@ export default function AuthProvider({ children }: AuthProviderProps) {
             return;
           } else {
             // Unexpected response — log and fall back to login to recover
-            console.warn("AuthProvider: unexpected get-user response", resp.status);
+            console.warn(
+              "AuthProvider: unexpected get-user response",
+              resp.status
+            );
             safeNavigate("/login");
             return;
           }
@@ -81,7 +88,12 @@ export default function AuthProvider({ children }: AuthProviderProps) {
           console.warn("profile check failed (attempt)", attempt, msg);
 
           // Retry on authentication-not-ready errors
-          if (/(User needs to be authenticated|UserNotAuthenticated|UserNotAuthenticatedException)/i.test(msg) && attempt < MAX_ATTEMPTS) {
+          if (
+            /(User needs to be authenticated|UserNotAuthenticated|UserNotAuthenticatedException)/i.test(
+              msg
+            ) &&
+            attempt < MAX_ATTEMPTS
+          ) {
             await new Promise((r) => setTimeout(r, 400));
             continue;
           }
