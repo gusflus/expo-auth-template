@@ -413,5 +413,26 @@ export class AuthResources extends Construct {
         postConfirmLambda
       );
     }
+
+    // Create Lambda for customizing Cognito messages (signup codes, forgot password, etc.)
+    const customMessageLambda = new cdk.aws_lambda.Function(
+      this,
+      "CustomMessageLambda",
+      {
+        runtime: cdk.aws_lambda.Runtime.NODEJS_20_X,
+        handler: "custom-message.handler",
+        code: cdk.aws_lambda.Code.fromAsset(
+          path.join(__dirname, "../../lambda/dist"),
+          { exclude: ["**/*.ts"] }
+        ),
+        timeout: cdk.Duration.seconds(10),
+      }
+    );
+
+    // Attach the custom message trigger to the User Pool
+    this.userPool.addTrigger(
+      cdk.aws_cognito.UserPoolOperation.CUSTOM_MESSAGE,
+      customMessageLambda
+    );
   }
 }

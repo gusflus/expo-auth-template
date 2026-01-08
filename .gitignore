@@ -11,6 +11,8 @@ cdk.out
 *.p8
 
 .yarn
+.vscode
+
 TODO.md
 
 lambda/dist
