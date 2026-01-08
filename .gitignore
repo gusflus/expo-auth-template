@@ -17,3 +17,5 @@ lambda/dist
 
 cdk-outputs.json
 cdk.context.json
+
+backups/
