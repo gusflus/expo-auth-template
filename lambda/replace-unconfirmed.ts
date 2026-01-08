@@ -193,7 +193,7 @@ export const handler = async (
         },
         body: JSON.stringify({
           success: true,
-          deletedUsername: found.username,
+          message: "Unconfirmed account cleared",
         }),
       };
     } catch (err) {

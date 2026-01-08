@@ -61,10 +61,8 @@ export default function ConfirmScreen() {
         console.warn("Failed to persist pending signup on resend", err);
       }
 
-      Alert.alert(
-        "Code Sent",
-        "A new confirmation code has been sent to your email."
-      );
+      // Code sent successfully; the UI now reflects that (no modal alert necessary)
+      console.log("Confirmation code resent");
 
       // Cooldown the button for 30s
       setTimeout(() => setResendDisabled(false), 30 * 1000);
@@ -136,10 +134,7 @@ export default function ConfirmScreen() {
             );
           }
 
-          Alert.alert(
-            "Confirmed",
-            "Account confirmed successfully. Please sign in."
-          );
+          // Account confirmed; redirecting to sign-in
           router.replace("/login");
           return;
         }
@@ -153,10 +148,7 @@ export default function ConfirmScreen() {
           );
         }
 
-        Alert.alert(
-          "Confirmed",
-          "Account confirmed successfully. Please sign in."
-        );
+        // Account confirmed; redirecting to sign-in
         router.replace("/login");
         return;
       }

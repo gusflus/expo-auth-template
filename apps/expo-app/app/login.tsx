@@ -167,10 +167,7 @@ export default function LoginScreen() {
           )}&email=${encodeURIComponent(email)}`
         );
 
-        Alert.alert(
-          "Confirmation Required",
-          "Your account is not confirmed. A new confirmation code has been sent to your email."
-        );
+        // Navigated to confirmation; the confirmation screen will guide the user
         setLoading(false);
         return;
       }
@@ -217,10 +214,7 @@ export default function LoginScreen() {
               )}&email=${encodeURIComponent(pending.email ?? email)}`
             );
 
-            Alert.alert(
-              "Complete Signup",
-              "We found an unfinished signup for this account. A confirmation code was sent to the email on file."
-            );
+            // Navigated to confirmation; the confirmation screen will guide the user
             setLoading(false);
             return;
           }
@@ -273,10 +267,7 @@ export default function LoginScreen() {
                     )}&email=${encodeURIComponent(email)}`
                   );
 
-                  Alert.alert(
-                    "Complete Signup",
-                    "We found an unfinished signup for this email address. A confirmation code was sent to that email."
-                  );
+                  // Navigated to confirmation; the confirmation screen will guide the user
                   setLoading(false);
                   return;
                 }
@@ -331,10 +322,7 @@ export default function LoginScreen() {
             )}&email=${encodeURIComponent(pending.email ?? email)}`
           );
 
-          Alert.alert(
-            "Complete Signup",
-            "We found an unfinished signup for this account. A confirmation code was sent to the email on file."
-          );
+          // Navigated to confirmation; the confirmation screen will guide the user
           setLoading(false);
           return;
         }
@@ -353,10 +341,7 @@ export default function LoginScreen() {
             password
           )}&email=${encodeURIComponent(email)}`
         );
-        Alert.alert(
-          "Confirmation Required",
-          "An unfinished signup was located. A confirmation code has been sent to that identifier."
-        );
+        // Navigated to confirmation as a recovery attempt; the confirmation screen will guide the user
         setLoading(false);
         return;
       } catch (err) {
@@ -367,6 +352,7 @@ export default function LoginScreen() {
         );
       }
 
+      console.error("Sign in final error:", error);
       Alert.alert("Sign In Error", msg);
       setLoading(false);
     }
@@ -438,7 +424,7 @@ export default function LoginScreen() {
                   setLoading(false);
                   Alert.alert(
                     "Success",
-                    "Recreated account and sent confirmation code. Please check your email."
+                    "Please check your email for the confirmation code."
                   );
                   return;
                 } catch (err: any) {
@@ -543,10 +529,7 @@ export default function LoginScreen() {
             )}&email=${encodeURIComponent(email)}`
           );
 
-          Alert.alert(
-            "Confirmation Required",
-            "An account with that username/email already exists but is not confirmed. A new confirmation code has been sent."
-          );
+          // Navigated to confirmation; the confirmation screen will guide the user
           setLoading(false);
           return;
         } catch (err: any) {
@@ -602,10 +585,7 @@ export default function LoginScreen() {
                     )}&email=${encodeURIComponent(email)}`
                   );
 
-                  Alert.alert(
-                    "Confirmation Required",
-                    "An account with that email exists but is not confirmed. A new confirmation code has been sent."
-                  );
+                  // Navigated to confirmation; the confirmation screen will guide the user
                   setLoading(false);
                   return;
                 }
@@ -620,6 +600,7 @@ export default function LoginScreen() {
         }
       }
 
+      console.error("Sign up error:", error);
       Alert.alert("Sign Up Error", msg);
       setLoading(false);
     }
