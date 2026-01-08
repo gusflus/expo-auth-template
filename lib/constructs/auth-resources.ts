@@ -2,6 +2,10 @@ import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as path from "path";
 
+interface AuthResourcesProps {
+  usersTable?: cdk.aws_dynamodb.Table;
+}
+
 export class AuthResources extends Construct {
   public readonly userPool: cdk.aws_cognito.UserPool;
   public readonly userPoolClient: cdk.aws_cognito.UserPoolClient;
@@ -9,7 +13,7 @@ export class AuthResources extends Construct {
   public readonly identityPool: cdk.aws_cognito.CfnIdentityPool;
   public readonly appleAuthApi: cdk.aws_apigateway.RestApi;
 
-  constructor(scope: Construct, id: string) {
+  constructor(scope: Construct, id: string, props?: AuthResourcesProps) {
     super(scope, id);
 
     this.userPool = new cdk.aws_cognito.UserPool(this, "UserPool", {
@@ -208,6 +212,10 @@ export class AuthResources extends Construct {
           // TODO: should only need one
           APPLE_PROVIDER_NAME:
             process.env.APPLE_PROVIDER_NAME || "SignInWithApple",
+          // Optional DynamoDB Users table name injected by stack
+          ...(props?.usersTable
+            ? { USERS_TABLE_NAME: props.usersTable.tableName }
+            : {}),
         },
         timeout: cdk.Duration.seconds(30),
       }
@@ -236,7 +244,9 @@ export class AuthResources extends Construct {
           "cognito-idp:AdminGetUser",
           "cognito-idp:AdminUpdateUserAttributes",
         ],
-        resources: [this.userPool.userPoolArn],
+        resources: [
+          `arn:aws:cognito-idp:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:userpool/*`,
+        ],
       })
     );
 
@@ -283,7 +293,9 @@ export class AuthResources extends Construct {
       new cdk.aws_iam.PolicyStatement({
         effect: cdk.aws_iam.Effect.ALLOW,
         actions: ["cognito-idp:ListUsers", "cognito-idp:AdminGetUser"],
-        resources: [this.userPool.userPoolArn],
+        resources: [
+          `arn:aws:cognito-idp:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:userpool/*`,
+        ],
       })
     );
 
@@ -293,5 +305,114 @@ export class AuthResources extends Construct {
     this.appleAuthApi.root
       .addResource("check-email")
       .addMethod("POST", checkEmailIntegration);
+
+    // If a DynamoDB users table was provided, wire up user GET/POST endpoints
+    if (props?.usersTable) {
+      // Grant the apple auth lambda read/write access so it can persist initial user info
+      props.usersTable.grantReadWriteData(appleAuthLambda);
+
+      // Lambda to get user data from DynamoDB
+      const getUserLambda = new cdk.aws_lambda.Function(this, "GetUserLambda", {
+        runtime: cdk.aws_lambda.Runtime.NODEJS_20_X,
+        handler: "get-user.handler",
+        code: cdk.aws_lambda.Code.fromAsset(
+          path.join(__dirname, "../../lambda/dist"),
+          {
+            exclude: ["**/*.ts"],
+          }
+        ),
+        environment: {
+          USERS_TABLE_NAME: props.usersTable.tableName,
+        },
+        timeout: cdk.Duration.seconds(10),
+      });
+
+      props.usersTable.grantReadData(getUserLambda);
+
+      const getUserIntegration = new cdk.aws_apigateway.LambdaIntegration(
+        getUserLambda
+      );
+      this.appleAuthApi.root
+        .addResource("user")
+        .addMethod("GET", getUserIntegration);
+
+      // Lambda to update user data (merge missing attributes)
+      const updateUserLambda = new cdk.aws_lambda.Function(
+        this,
+        "UpdateUserLambda",
+        {
+          runtime: cdk.aws_lambda.Runtime.NODEJS_20_X,
+          handler: "update-user.handler",
+          code: cdk.aws_lambda.Code.fromAsset(
+            path.join(__dirname, "../../lambda/dist"),
+            {
+              exclude: ["**/*.ts"],
+            }
+          ),
+          environment: {
+            USERS_TABLE_NAME: props.usersTable.tableName,
+            USER_POOL_ID: this.userPool.userPoolId,
+          },
+          timeout: cdk.Duration.seconds(10),
+        }
+      );
+
+      props.usersTable.grantWriteData(updateUserLambda);
+
+      // The update lambda may need to write back to Cognito attributes
+      updateUserLambda.addToRolePolicy(
+        new cdk.aws_iam.PolicyStatement({
+          effect: cdk.aws_iam.Effect.ALLOW,
+          actions: ["cognito-idp:AdminUpdateUserAttributes"],
+          resources: [
+            `arn:aws:cognito-idp:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:userpool/*`,
+          ],
+        })
+      );
+
+      const updateUserIntegration = new cdk.aws_apigateway.LambdaIntegration(
+        updateUserLambda
+      );
+      this.appleAuthApi.root
+        .getResource("user")
+        ?.addMethod("POST", updateUserIntegration);
+
+      // Post-confirmation trigger to persist users that sign up with Cognito flows
+      const postConfirmLambda = new cdk.aws_lambda.Function(
+        this,
+        "PostConfirmLambda",
+        {
+          runtime: cdk.aws_lambda.Runtime.NODEJS_20_X,
+          handler: "post-confirm.handler",
+          code: cdk.aws_lambda.Code.fromAsset(
+            path.join(__dirname, "../../lambda/dist"),
+            {
+              exclude: ["**/*.ts"],
+            }
+          ),
+          environment: {
+            USERS_TABLE_NAME: props.usersTable.tableName,
+          },
+          timeout: cdk.Duration.seconds(10),
+        }
+      );
+
+      props.usersTable.grantReadWriteData(postConfirmLambda);
+      postConfirmLambda.addToRolePolicy(
+        new cdk.aws_iam.PolicyStatement({
+          effect: cdk.aws_iam.Effect.ALLOW,
+          actions: ["cognito-idp:AdminGetUser"],
+          resources: [
+            `arn:aws:cognito-idp:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:userpool/*`,
+          ],
+        })
+      );
+
+      // Attach the post confirmation trigger to the User Pool
+      this.userPool.addTrigger(
+        cdk.aws_cognito.UserPoolOperation.POST_CONFIRMATION,
+        postConfirmLambda
+      );
+    }
   }
 }

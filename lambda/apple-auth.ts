@@ -9,6 +9,8 @@ import {
   CognitoIdentityProviderClient,
   ListUsersCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import jwt from "jsonwebtoken";
 import jwksClient from "jwks-rsa";
@@ -21,6 +23,13 @@ const cognitoIdentity = new CognitoIdentityClient({
 const cognitoIdp = new CognitoIdentityProviderClient({
   region: process.env.AWS_REGION,
 });
+
+// Optional DynamoDB client to persist user records if a table is configured
+let ddbClient: DynamoDBDocumentClient | null = null;
+if (process.env.USERS_TABLE_NAME) {
+  const lowLevel = new DynamoDBClient({ region: process.env.AWS_REGION });
+  ddbClient = DynamoDBDocumentClient.from(lowLevel);
+}
 
 const client = jwksClient({
   jwksUri: "https://appleid.apple.com/auth/keys",
@@ -275,6 +284,41 @@ export const handler = async (
 
         userPoolUsername = (result as any).username;
         console.info("Ensured user in User Pool:", userPoolUsername);
+
+        // If we have a DynamoDB table configured, upsert the user record with
+        // whatever profile data we can glean from the provider/Cognito.
+        try {
+          if (ddbClient && decodedToken?.sub) {
+            const firstName =
+              decodedToken.given_name ||
+              decodedToken.firstName ||
+              decodedToken.name?.split?.(" ")?.[0] ||
+              undefined;
+            const lastName =
+              decodedToken.family_name ||
+              decodedToken.lastName ||
+              (decodedToken.name
+                ? decodedToken.name.split(" ").slice(1).join(" ")
+                : undefined) ||
+              undefined;
+
+            await ddbClient.send(
+              new PutCommand({
+                TableName: process.env.USERS_TABLE_NAME,
+                Item: {
+                  sub: decodedToken.sub,
+                  username: userPoolUsername,
+                  email: decodedToken.email,
+                  firstName,
+                  lastName,
+                  createdAt: new Date().toISOString(),
+                },
+              })
+            );
+          }
+        } catch (err) {
+          console.warn("Failed to persist user record to DynamoDB:", err);
+        }
       } catch (err) {
         console.warn("Failed to ensure user in User Pool:", err);
       }

@@ -10,6 +10,7 @@ import {
 import { Hub } from "aws-amplify/utils";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useEffect, useState } from "react";
+import { useRouter } from "expo-router";
 import {
   Alert,
   ScrollView,
@@ -31,6 +32,7 @@ export default function HomeScreen() {
   const [password, setPassword] = useState("");
   const [confirmationCode, setConfirmationCode] = useState("");
   const [jwtToken, setJwtToken] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     checkAuthState();
@@ -327,140 +329,25 @@ export default function HomeScreen() {
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <Text>Loading...</Text>
-      </View>
-    );
-  }
-
-  if (!user) {
-    return (
-      <ScrollView style={styles.container}>
-        <Text style={styles.title}>Expo Auth Demo</Text>
-
-        {/* Google Sign In */}
-        <TouchableOpacity
-          style={styles.googleButton}
-          onPress={handleGoogleSignIn}
-        >
-          <Text style={styles.buttonText}>Sign in with Google</Text>
-        </TouchableOpacity>
-
-        {/* Apple Sign In */}
-        <TouchableOpacity
-          style={styles.appleButton}
-          onPress={handleNativeAppleSignIn}
-        >
-          <Text style={styles.buttonText}>Sign in with Apple</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.divider}>OR</Text>
-
-        {/* Email Auth Form */}
-        {authMode === "confirm" ? (
-          <View style={styles.form}>
-            <Text style={styles.formTitle}>Confirm Your Account</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Confirmation Code"
-              value={confirmationCode}
-              onChangeText={setConfirmationCode}
-              keyboardType="numeric"
-            />
-            <TouchableOpacity
-              style={styles.button}
-              onPress={handleConfirmSignUp}
-            >
-              <Text style={styles.buttonText}>Confirm Account</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setAuthMode("signin")}>
-              <Text style={styles.linkText}>Back to Sign In</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.form}>
-            <Text style={styles.formTitle}>
-              {authMode === "signin" ? "Sign In" : "Sign Up"}
-            </Text>
-            {authMode === "signup" && (
-              <TextInput
-                style={styles.input}
-                placeholder="Username"
-                value={username}
-                onChangeText={setUsername}
-                autoCapitalize="none"
-              />
-            )}
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-            <TouchableOpacity
-              style={styles.button}
-              onPress={
-                authMode === "signin" ? handleEmailSignIn : handleEmailSignUp
-              }
-            >
-              <Text style={styles.buttonText}>
-                {authMode === "signin" ? "Sign In" : "Sign Up"}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() =>
-                setAuthMode(authMode === "signin" ? "signup" : "signin")
-              }
-            >
-              <Text style={styles.linkText}>
-                {authMode === "signin"
-                  ? "Don't have an account? Sign Up"
-                  : "Already have an account? Sign In"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </ScrollView>
-    );
-  }
+  // Redirecting behavior: check if user is authenticated and route to the proper page
+  useEffect(() => {
+    (async () => {
+      try {
+        const session = await fetchAuthSession();
+        const idTokenObj = (session as any)?.tokens?.idToken;
+        const tokenStr = idTokenObj?.toString?.() ?? idTokenObj?.jwtToken ?? idTokenObj?.raw ?? idTokenObj?.token ?? null;
+        if (tokenStr) router.replace('/logged-in');
+        else router.replace('/login');
+      } catch (err) {
+        router.replace('/login');
+      }
+    })();
+  }, [router]);
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Welcome!</Text>
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <Text style={styles.buttonText}>Sign Out</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.userInfo}>
-        <Text style={styles.sectionTitle}>User Info</Text>
-        <Text>User ID: {user.userId}</Text>
-        <Text>Email: {user.attributes.email}</Text>
-        {user.attributes.name && <Text>Name: {user.attributes.name}</Text>}
-      </View>
-
-      <View style={styles.userInfo}>
-        <Text style={styles.sectionTitle}>JWT</Text>
-        <TextInput
-          style={[styles.input, { height: 120 }]}
-          multiline
-          value={jwtToken ?? ""}
-          editable={false}
-        />
-      </View>
-    </ScrollView>
+    <View style={styles.container}>
+      <Text>Redirecting...</Text>
+    </View>
   );
 }
 
