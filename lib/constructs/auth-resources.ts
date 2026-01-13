@@ -360,8 +360,10 @@ export class AuthResources extends Construct {
           "cognito-idp:AdminCreateUser",
           "cognito-idp:AdminLinkProviderForUser",
           "cognito-idp:AdminGetUser",
-          "cognito-idp:AdminUpdateUserAttributes",          "cognito-idp:AdminSetUserPassword",
-          "cognito-idp:AdminInitiateAuth",        ],
+          "cognito-idp:AdminUpdateUserAttributes",
+          "cognito-idp:AdminSetUserPassword",
+          "cognito-idp:AdminInitiateAuth",
+        ],
         resources: [
           `arn:aws:cognito-idp:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:userpool/*`,
         ],

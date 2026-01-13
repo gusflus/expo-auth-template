@@ -151,6 +151,45 @@ async function ensureUserInUserPool(
   const userPoolId = process.env.USER_POOL_ID;
   if (!userPoolId) throw new Error("USER_POOL_ID is not configured");
 
+  // If we have a sub (provider subject), prefer finding a user by sub first to avoid
+  // creating duplicate users when email is absent or unverified.
+  if (sub) {
+    try {
+      const bySub = await cognitoIdp.send(
+        new ListUsersCommand({
+          UserPoolId: userPoolId,
+          Filter: `sub = "${sub}"`,
+          Limit: 1,
+        })
+      );
+      if (bySub.Users && bySub.Users.length) {
+        const user = bySub.Users[0];
+        const username = user.Username!;
+        // Attempt to parse providers from identities attribute
+        const identitiesAttr = user.Attributes?.find(
+          (a) => a.Name === "identities"
+        )?.Value;
+        let providers: string[] = [];
+        if (identitiesAttr) {
+          try {
+            const identities = JSON.parse(identitiesAttr);
+            if (Array.isArray(identities)) {
+              providers = identities
+                .map((i: any) => i.providerName)
+                .filter(Boolean);
+            }
+          } catch (err) {
+            /* ignore */
+          }
+        }
+        console.info("Found existing user by sub:", username);
+        return { username, providers };
+      }
+    } catch (err) {
+      console.warn("ListUsers by sub failed", err);
+    }
+  }
+
   if (email) {
     const existing = await findUserByEmail(userPoolId, email);
     if (existing) {
