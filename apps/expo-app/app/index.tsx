@@ -11,7 +11,7 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
-import { useAuth } from "../components/AuthProvider";
+import { useAuth } from "auth";
 
 type AuthMode = "signin" | "signup" | "confirm";
 
@@ -291,7 +291,7 @@ export default function HomeScreen() {
           email,
         });
         await (
-          await import("../lib/pendingSignup")
+          await import("auth")
         ).setPendingSignup({ username, password, email });
         console.log("index: pending signup persisted for", username);
         if (__DEV__) {

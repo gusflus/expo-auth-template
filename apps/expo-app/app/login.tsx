@@ -16,12 +16,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth } from "../components/AuthProvider";
+import { useAuth } from "auth";
 import {
   clearPendingSignup,
   getPendingSignup,
   setPendingSignup,
-} from "../lib/pendingSignup";
+} from "auth";
 
 type AuthMode = "signin" | "signup" | "confirm";
 

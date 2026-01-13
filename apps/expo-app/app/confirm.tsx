@@ -13,7 +13,7 @@ import {
   clearPendingSignup,
   getPendingSignup,
   setPendingSignup,
-} from "../lib/pendingSignup";
+} from "auth";
 
 export default function ConfirmScreen() {
   const router = useRouter();

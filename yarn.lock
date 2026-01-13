@@ -6875,6 +6875,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"auth@workspace:packages/auth":
+  version: 0.0.0-use.local
+  resolution: "auth@workspace:packages/auth"
+  peerDependencies:
+    "@react-native-async-storage/async-storage": "*"
+    aws-amplify: "*"
+    expo-router: "*"
+    react: "*"
+    react-native: "*"
+  languageName: unknown
+  linkType: soft
+
 "available-typed-arrays@npm:^1.0.7":
   version: 1.0.7
   resolution: "available-typed-arrays@npm:1.0.7"

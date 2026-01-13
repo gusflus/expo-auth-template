@@ -1,21 +1,18 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Amplify } from "aws-amplify";
-import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
+import { fetchAuthSession, getCurrentUser, signOut } from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
 import { useRouter } from "expo-router";
 import React, { ReactNode, useCallback, useEffect, useState } from "react";
-import { authConfig } from "../lib/amplify-config";
+import { getAuthConfig } from "../lib/amplify-config";
 import { getPendingSignup } from "../lib/pendingSignup";
 
-Amplify.configure(authConfig);
-
-interface AuthProviderProps {
-  children: ReactNode;
-}
+// Configure Amplify using the app-level config so behavior matches the app
+Amplify.configure(getAuthConfig());
 
 export type Profile = {
   username?: string;
-  email: string;
+  email?: string;
   firstName?: string;
   lastName?: string;
   [k: string]: any;
@@ -38,6 +35,10 @@ export function useAuth() {
   const ctx = React.useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
+}
+
+interface AuthProviderProps {
+  children: ReactNode;
 }
 
 export default function AuthProvider({ children }: AuthProviderProps) {
@@ -68,12 +69,10 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     while (attempt < MAX_ATTEMPTS) {
       try {
         attempt++;
-        console.debug("AuthProvider: checking profile (attempt)", attempt);
         const session = await fetchAuthSession();
         const idTokenObj = (session as any)?.tokens?.idToken;
         const resolvedSub =
           idTokenObj?.payload?.sub || (await getCurrentUser())?.userId;
-        console.debug("AuthProvider: sub=", resolvedSub);
 
         setSub(resolvedSub ?? null);
 
@@ -101,9 +100,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
           }
         );
 
-        console.debug("AuthProvider: get-user status=", resp.status);
         if (resp.status === 403) {
-          // Incomplete profile
           const payload = idTokenObj?.payload ?? {};
           setProfile({
             email: payload.email,
@@ -117,7 +114,6 @@ export default function AuthProvider({ children }: AuthProviderProps) {
                 : undefined),
           });
           setProfileStatus("incomplete");
-          // navigate to complete-profile with helpful params
           const q = new URLSearchParams();
           if (payload.email) q.set("email", payload.email);
           const first =
@@ -134,7 +130,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
           setCheckingProfile(false);
           return;
         } else if (resp.ok) {
-          const body = await resp.json().catch(() => ({}));
+          const body: any = await resp.json().catch(() => ({}));
           const item = body.item ?? {};
           setProfileStatus("complete");
           setProfile(item);
@@ -170,13 +166,11 @@ export default function AuthProvider({ children }: AuthProviderProps) {
       }
     }
 
-    // exhausted
     safeNavigate("/login");
     setCheckingProfile(false);
-  }, [router, safeNavigate]);
+  }, [safeNavigate]);
 
   const signOutLocal = useCallback(async () => {
-    // Remove common storage keys used by Amplify
     try {
       const keys = await AsyncStorage.getAllKeys();
       const removal = keys.filter(
@@ -199,22 +193,43 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     }
 
     try {
+      const noOauthConfig = JSON.parse(JSON.stringify(getAuthConfig()));
+      try {
+        if (noOauthConfig?.Auth?.Cognito?.loginWith?.oauth) {
+          delete noOauthConfig.Auth.Cognito.loginWith.oauth;
+        }
+      } catch (err) {
+        /* ignore */
+      }
+
+      Amplify.configure(noOauthConfig);
+
+      try {
+        // @ts-ignore
+        await signOut({ global: false }).catch((e: any) =>
+          console.debug("non-redirecting signOut failed:", e)
+        );
+      } catch (err) {
+        console.debug("signOut call failed (non-fatal):", err);
+      }
+
+      Amplify.configure(getAuthConfig());
+    } catch (e) {
+      console.warn("Non-redirecting signOut attempt failed:", e);
+    }
+
+    try {
       Hub.dispatch("auth", { event: "signedOut" }, "Auth");
     } catch (e) {
       console.warn("Hub.dispatch signedOut failed:", e);
     }
   }, []);
 
-  // Check for a pending signup first — if found, restore the confirmation flow
   useEffect(() => {
     (async () => {
       try {
         const pending = await getPendingSignup();
         if (pending?.username) {
-          console.log(
-            "AuthProvider: restoring pending signup",
-            pending.username
-          );
           safeNavigate(
             `/confirm?username=${encodeURIComponent(
               pending.username
@@ -230,7 +245,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
 
       checkProfile();
     })();
-  }, [checkProfile, safeNavigate]);
+  }, [checkProfile]);
 
   useEffect(() => {
     if (Hub && typeof Hub.listen === "function") {

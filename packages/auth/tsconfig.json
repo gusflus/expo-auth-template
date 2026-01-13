@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "jsx": "react-native",
+    "outDir": "dist",
+    "paths": {
+      "auth": ["../packages/auth/src"],
+      "auth/*": ["../packages/auth/src/*"]
+    },
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "strict": true
+  },
+  "include": ["src"]
+}

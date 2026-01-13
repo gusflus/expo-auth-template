@@ -28,7 +28,8 @@
   "workspaces": {
     "packages": [
       "apps/expo-app",
-      "lambda"
+      "lambda",
+      "packages/auth"
     ]
   }
 }

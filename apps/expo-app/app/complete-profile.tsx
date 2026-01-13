@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth } from "../components/AuthProvider";
+import { useAuth } from "auth";
 
 export default function CompleteProfile() {
   const router = useRouter();

@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth } from "../components/AuthProvider";
+import { useAuth } from "auth";
 
 export default function LoggedInScreen() {
   const router = useRouter();
