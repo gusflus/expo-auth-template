@@ -4,7 +4,6 @@ import {
   getCurrentUser,
   signIn,
   signInWithRedirect,
-  signOut,
   signUp,
 } from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
@@ -335,14 +334,15 @@ export default function HomeScreen() {
       // Local sign-out: clear likely Amplify storage keys and dispatch 'signedOut'
       try {
         const keys = await AsyncStorage.getAllKeys();
-        const removal = keys.filter((k) =>
-          k.startsWith("CognitoIdentityServiceProvider") ||
-          k.includes("CognitoIdentityId") ||
-          k.includes("aws-amplify") ||
-          k.includes("amplify") ||
-          k.includes("idToken") ||
-          k.includes("accessToken") ||
-          k.includes("refreshToken")
+        const removal = keys.filter(
+          (k) =>
+            k.startsWith("CognitoIdentityServiceProvider") ||
+            k.includes("CognitoIdentityId") ||
+            k.includes("aws-amplify") ||
+            k.includes("amplify") ||
+            k.includes("idToken") ||
+            k.includes("accessToken") ||
+            k.includes("refreshToken")
         );
         if (removal.length) {
           await AsyncStorage.multiRemove(removal).catch((e) =>

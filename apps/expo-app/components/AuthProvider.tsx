@@ -75,8 +75,14 @@ export default function AuthProvider({ children }: AuthProviderProps) {
             const payload = idTokenObj?.payload ?? {};
             const q = new URLSearchParams();
             if (payload.email) q.set("email", payload.email);
-            const first = payload.given_name || (payload.name ? payload.name.split(" ")[0] : undefined);
-            const last = payload.family_name || (payload.name ? payload.name.split(" ").slice(1).join(" ") : undefined);
+            const first =
+              payload.given_name ||
+              (payload.name ? payload.name.split(" ")[0] : undefined);
+            const last =
+              payload.family_name ||
+              (payload.name
+                ? payload.name.split(" ").slice(1).join(" ")
+                : undefined);
             if (first) q.set("firstName", first);
             if (last) q.set("lastName", last);
             safeNavigate(`/complete-profile?${q.toString()}`);

@@ -1,10 +1,9 @@
-import { fetchAuthSession, getCurrentUser, signOut } from "aws-amplify/auth";
-import { Amplify, Hub } from "aws-amplify";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Hub } from "aws-amplify";
+import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -61,14 +60,15 @@ export default function LoggedInScreen() {
       // dispatching an auth 'signedOut' event — avoids invoking the Hosted UI.
       try {
         const keys = await AsyncStorage.getAllKeys();
-        const removal = keys.filter((k) =>
-          k.startsWith("CognitoIdentityServiceProvider") ||
-          k.includes("CognitoIdentityId") ||
-          k.includes("aws-amplify") ||
-          k.includes("amplify") ||
-          k.includes("idToken") ||
-          k.includes("accessToken") ||
-          k.includes("refreshToken")
+        const removal = keys.filter(
+          (k) =>
+            k.startsWith("CognitoIdentityServiceProvider") ||
+            k.includes("CognitoIdentityId") ||
+            k.includes("aws-amplify") ||
+            k.includes("amplify") ||
+            k.includes("idToken") ||
+            k.includes("accessToken") ||
+            k.includes("refreshToken")
         );
         if (removal.length) {
           await AsyncStorage.multiRemove(removal).catch((e) =>

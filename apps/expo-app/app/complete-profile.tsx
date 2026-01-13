@@ -1,6 +1,6 @@
 import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import { useEffect, useState, useRef } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   Alert,
   ScrollView,
@@ -59,7 +59,8 @@ export default function CompleteProfile() {
         }
         if (!firstName && payload.given_name) setFirstName(payload.given_name);
         if (!lastName && payload.family_name) setLastName(payload.family_name);
-        if (!username && payload["cognito:username"]) setUsername(payload["cognito:username"]);
+        if (!username && payload["cognito:username"])
+          setUsername(payload["cognito:username"]);
 
         // Fetch existing profile from our API (Dynamo) to see what's stored
         if (apiBase && mySub) {
@@ -212,7 +213,8 @@ export default function CompleteProfile() {
 
       {need.length === 0 && (
         <Text style={{ marginBottom: 12, color: "#666", textAlign: "center" }}>
-          All fields are filled — please verify and click Save to complete setup.
+          All fields are filled — please verify and click Save to complete
+          setup.
         </Text>
       )}
 
