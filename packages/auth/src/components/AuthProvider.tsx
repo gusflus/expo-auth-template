@@ -148,16 +148,20 @@ export default function AuthProvider({ children }: AuthProviderProps) {
         }
       } catch (err: any) {
         const msg = err?.message ?? String(err);
-        console.warn("profile check failed (attempt)", attempt, msg);
 
-        if (
-          /(User needs to be authenticated|UserNotAuthenticated|UserNotAuthenticatedException)/i.test(
-            msg
-          ) &&
-          attempt < MAX_ATTEMPTS
-        ) {
-          await new Promise((r) => setTimeout(r, 400));
-          continue;
+        // Suppress noisy warnings for transient authentication errors while retrying.
+        if (/(User needs to be authenticated|UserNotAuthenticated|UserNotAuthenticatedException)/i.test(msg)) {
+          // Expected transient state during sign-in/redirect flows — log at debug level only.
+          console.debug("AuthProvider: transient auth error (attempt)", attempt, msg);
+
+          if (attempt < MAX_ATTEMPTS) {
+            await new Promise((r) => setTimeout(r, 400));
+            continue;
+          }
+
+          // After exhausting attempts, fall through to the normal handling.
+        } else {
+          console.warn("AuthProvider: profile check failed (attempt)", attempt, msg);
         }
 
         safeNavigate("/login");

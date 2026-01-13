@@ -1,1 +1,0 @@
-export { getAuthConfig } from "auth";
