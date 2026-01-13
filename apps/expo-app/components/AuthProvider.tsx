@@ -1,131 +1,212 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Amplify } from "aws-amplify";
 import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
 import { useRouter } from "expo-router";
-import { ReactNode, useEffect } from "react";
+import React, { ReactNode, useCallback, useEffect, useState } from "react";
 import { authConfig } from "../lib/amplify-config";
 import { getPendingSignup } from "../lib/pendingSignup";
 
-// Configure Amplify
 Amplify.configure(authConfig);
 
 interface AuthProviderProps {
   children: ReactNode;
 }
 
+export type Profile = {
+  username?: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  [k: string]: any;
+} | null;
+
+type ProfileStatus = "unknown" | "complete" | "incomplete";
+
+export interface AuthContextType {
+  checkingProfile: boolean;
+  sub?: string | null;
+  profile?: Profile;
+  profileStatus: ProfileStatus;
+  checkProfile: () => Promise<void>;
+  signOutLocal: () => Promise<void>;
+}
+
+export const AuthContext = React.createContext<AuthContextType | null>(null);
+
+export function useAuth() {
+  const ctx = React.useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
+}
+
 export default function AuthProvider({ children }: AuthProviderProps) {
   const router = useRouter();
 
-  useEffect(() => {
-    const API_BASE = process.env.EXPO_PUBLIC_APPLE_AUTH_API_URL;
-    const lastNavRef = { current: null as string | null } as {
-      current: string | null;
-    };
+  const [checkingProfile, setCheckingProfile] = useState(false);
+  const [sub, setSub] = useState<string | null>(null);
+  const [profile, setProfile] = useState<Profile>(null);
+  const [profileStatus, setProfileStatus] = useState<ProfileStatus>("unknown");
 
-    const safeNavigate = (path: string) => {
-      if (lastNavRef.current === path) return;
+  const safeNavigate = useCallback(
+    (path: string) => {
       try {
         router.replace(path);
-        lastNavRef.current = path;
-        setTimeout(() => (lastNavRef.current = null), 1200);
       } catch (err) {
         console.warn("navigation failed", err);
       }
-    };
+    },
+    [router]
+  );
 
-    const checkProfile = async () => {
-      const MAX_ATTEMPTS = 5;
-      let attempt = 0;
-      while (attempt < MAX_ATTEMPTS) {
-        try {
-          attempt++;
-          console.debug("AuthProvider: checking profile (attempt)", attempt);
-          const session = await fetchAuthSession();
-          const idTokenObj = (session as any)?.tokens?.idToken;
-          const sub =
-            idTokenObj?.payload?.sub || (await getCurrentUser())?.userId;
-          console.debug("AuthProvider: sub=", sub);
+  const checkProfile = useCallback(async () => {
+    const API_BASE = process.env.EXPO_PUBLIC_APPLE_AUTH_API_URL;
+    setCheckingProfile(true);
 
-          if (!sub) {
-            // Not authenticated yet — possibly transient during redirect. Retry a few times.
-            if (attempt < MAX_ATTEMPTS) {
-              await new Promise((r) => setTimeout(r, 400));
-              continue;
-            }
-            safeNavigate("/login");
-            return;
-          }
+    const MAX_ATTEMPTS = 5;
+    let attempt = 0;
+    while (attempt < MAX_ATTEMPTS) {
+      try {
+        attempt++;
+        console.debug("AuthProvider: checking profile (attempt)", attempt);
+        const session = await fetchAuthSession();
+        const idTokenObj = (session as any)?.tokens?.idToken;
+        const resolvedSub =
+          idTokenObj?.payload?.sub || (await getCurrentUser())?.userId;
+        console.debug("AuthProvider: sub=", resolvedSub);
 
-          if (!API_BASE) return;
+        setSub(resolvedSub ?? null);
 
-          const resp = await fetch(
-            `${API_BASE}/user?sub=${encodeURIComponent(sub)}`,
-            {
-              method: "GET",
-              headers: { "Content-Type": "application/json" },
-            }
-          );
-
-          console.debug("AuthProvider: get-user status=", resp.status);
-          if (resp.status === 403) {
-            // Profile incomplete — force completion page
-            // Attempt to include helpful prefill data from the id token so the
-            // CompleteProfile screen can render immediately without waiting on
-            // the backend fetch.
-            const payload = idTokenObj?.payload ?? {};
-            const q = new URLSearchParams();
-            if (payload.email) q.set("email", payload.email);
-            const first =
-              payload.given_name ||
-              (payload.name ? payload.name.split(" ")[0] : undefined);
-            const last =
-              payload.family_name ||
-              (payload.name
-                ? payload.name.split(" ").slice(1).join(" ")
-                : undefined);
-            if (first) q.set("firstName", first);
-            if (last) q.set("lastName", last);
-            safeNavigate(`/complete-profile?${q.toString()}`);
-            return;
-          } else if (resp.ok) {
-            // Profile is complete — proceed to logged-in area
-            safeNavigate("/logged-in");
-            return;
-          } else {
-            // Unexpected response — log and fall back to login to recover
-            console.warn(
-              "AuthProvider: unexpected get-user response",
-              resp.status
-            );
-            safeNavigate("/login");
-            return;
-          }
-        } catch (err: any) {
-          const msg = err?.message ?? String(err);
-          console.warn("profile check failed (attempt)", attempt, msg);
-
-          // Retry on authentication-not-ready errors
-          if (
-            /(User needs to be authenticated|UserNotAuthenticated|UserNotAuthenticatedException)/i.test(
-              msg
-            ) &&
-            attempt < MAX_ATTEMPTS
-          ) {
+        if (!resolvedSub) {
+          if (attempt < MAX_ATTEMPTS) {
             await new Promise((r) => setTimeout(r, 400));
             continue;
           }
-
-          // On other errors or exhausted attempts, send to login to recover
           safeNavigate("/login");
+          setCheckingProfile(false);
           return;
         }
+
+        if (!API_BASE) {
+          setProfileStatus("unknown");
+          setCheckingProfile(false);
+          return;
+        }
+
+        const resp = await fetch(
+          `${API_BASE}/user?sub=${encodeURIComponent(resolvedSub)}`,
+          {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+
+        console.debug("AuthProvider: get-user status=", resp.status);
+        if (resp.status === 403) {
+          // Incomplete profile
+          const payload = idTokenObj?.payload ?? {};
+          setProfile({
+            email: payload.email,
+            firstName:
+              payload.given_name ||
+              (payload.name ? payload.name.split(" ")[0] : undefined),
+            lastName:
+              payload.family_name ||
+              (payload.name
+                ? payload.name.split(" ").slice(1).join(" ")
+                : undefined),
+          });
+          setProfileStatus("incomplete");
+          // navigate to complete-profile with helpful params
+          const q = new URLSearchParams();
+          if (payload.email) q.set("email", payload.email);
+          const first =
+            payload.given_name ||
+            (payload.name ? payload.name.split(" ")[0] : undefined);
+          const last =
+            payload.family_name ||
+            (payload.name
+              ? payload.name.split(" ").slice(1).join(" ")
+              : undefined);
+          if (first) q.set("firstName", first);
+          if (last) q.set("lastName", last);
+          safeNavigate(`/complete-profile?${q.toString()}`);
+          setCheckingProfile(false);
+          return;
+        } else if (resp.ok) {
+          const body = await resp.json().catch(() => ({}));
+          const item = body.item ?? {};
+          setProfileStatus("complete");
+          setProfile(item);
+          safeNavigate("/logged-in");
+          setCheckingProfile(false);
+          return;
+        } else {
+          console.warn(
+            "AuthProvider: unexpected get-user response",
+            resp.status
+          );
+          safeNavigate("/login");
+          setCheckingProfile(false);
+          return;
+        }
+      } catch (err: any) {
+        const msg = err?.message ?? String(err);
+        console.warn("profile check failed (attempt)", attempt, msg);
+
+        if (
+          /(User needs to be authenticated|UserNotAuthenticated|UserNotAuthenticatedException)/i.test(
+            msg
+          ) &&
+          attempt < MAX_ATTEMPTS
+        ) {
+          await new Promise((r) => setTimeout(r, 400));
+          continue;
+        }
+
+        safeNavigate("/login");
+        setCheckingProfile(false);
+        return;
       }
+    }
 
-      // Exhausted attempts — navigate to login
-      safeNavigate("/login");
-    };
+    // exhausted
+    safeNavigate("/login");
+    setCheckingProfile(false);
+  }, [router, safeNavigate]);
 
-    // Check for a pending signup first — if found, restore the confirmation flow
+  const signOutLocal = useCallback(async () => {
+    // Remove common storage keys used by Amplify
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const removal = keys.filter(
+        (k) =>
+          k.startsWith("CognitoIdentityServiceProvider") ||
+          k.includes("CognitoIdentityId") ||
+          k.includes("aws-amplify") ||
+          k.includes("amplify") ||
+          k.includes("idToken") ||
+          k.includes("accessToken") ||
+          k.includes("refreshToken")
+      );
+      if (removal.length) {
+        await AsyncStorage.multiRemove(removal).catch((e) =>
+          console.warn("AsyncStorage.multiRemove failed:", e)
+        );
+      }
+    } catch (e) {
+      console.warn("Local storage clear failed:", e);
+    }
+
+    try {
+      Hub.dispatch("auth", { event: "signedOut" }, "Auth");
+    } catch (e) {
+      console.warn("Hub.dispatch signedOut failed:", e);
+    }
+  }, []);
+
+  // Check for a pending signup first — if found, restore the confirmation flow
+  useEffect(() => {
     (async () => {
       try {
         const pending = await getPendingSignup();
@@ -147,11 +228,11 @@ export default function AuthProvider({ children }: AuthProviderProps) {
         console.warn("Failed to read pending signup in AuthProvider", err);
       }
 
-      // Run once on mount
       checkProfile();
     })();
+  }, [checkProfile, safeNavigate]);
 
-    // Run on auth events (sign-in / sign-out)
+  useEffect(() => {
     if (Hub && typeof Hub.listen === "function") {
       const listener = Hub.listen("auth", ({ payload }) => {
         const eventsToCheck = [
@@ -176,7 +257,19 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     }
 
     return undefined;
-  }, [router]);
+  }, [checkProfile]);
 
-  return <>{children}</>;
+  const ctx: AuthContextType = React.useMemo(
+    () => ({
+      checkingProfile,
+      sub,
+      profile,
+      profileStatus,
+      checkProfile,
+      signOutLocal,
+    }),
+    [checkingProfile, sub, profile, profileStatus, checkProfile, signOutLocal]
+  );
+
+  return <AuthContext.Provider value={ctx}>{children}</AuthContext.Provider>;
 }

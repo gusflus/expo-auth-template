@@ -10,12 +10,15 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAuth } from "../components/AuthProvider";
 
 export default function CompleteProfile() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sub, setSub] = useState<string | null>(null);
+
+  const { sub: authSub, profile, checkingProfile, checkProfile } = useAuth();
 
   // Fields we care about
   const [email, setEmail] = useState<string | undefined>(undefined);
@@ -36,6 +39,8 @@ export default function CompleteProfile() {
   const params = useLocalSearchParams();
 
   useEffect(() => {
+    // Disabled: profile logic moved to AuthProvider; keep effect noop to maintain behavior
+    return; // original flow is now handled by AuthProvider
     (async () => {
       try {
         // Apply immediate prefill values from query params (if provided)
@@ -112,6 +117,41 @@ export default function CompleteProfile() {
     })();
   }, [apiBase, router, params]);
 
+  // Apply initial prefill values from query params and AuthProvider profile
+  useEffect(() => {
+    if (params.email) setEmail(params.email as string);
+    if (params.firstName) setFirstName(params.firstName as string);
+    if (params.lastName) setLastName(params.lastName as string);
+
+    if (authSub) setSub(authSub);
+
+    if (profile) {
+      if (profile.email) setEmail(profile.email);
+      if (profile.username) setUsername(profile.username);
+      if (profile.firstName) setFirstName(profile.firstName);
+      if (profile.lastName) setLastName(profile.lastName);
+
+      const initMissing: ("username" | "email" | "firstName" | "lastName")[] =
+        [];
+      if (!profile.username) initMissing.push("username");
+      if (!profile.email) initMissing.push("email");
+      if (!profile.firstName) initMissing.push("firstName");
+      if (!profile.lastName) initMissing.push("lastName");
+      setInitialMissing(initMissing);
+    } else if (!checkingProfile) {
+      const initMissing: ("username" | "email" | "firstName" | "lastName")[] =
+        [];
+      if (!username) initMissing.push("username");
+      if (!email) initMissing.push("email");
+      if (!firstName) initMissing.push("firstName");
+      if (!lastName) initMissing.push("lastName");
+      setInitialMissing(initMissing);
+    }
+
+    if (checkingProfile) setLoading(true);
+    else setLoading(false);
+  }, [params, authSub, profile, checkingProfile]);
+
   // Determine which fields are missing and need user input
   const missingFields = (): (
     | "username"
@@ -120,16 +160,25 @@ export default function CompleteProfile() {
     | "lastName"
   )[] => {
     const missing: ("username" | "email" | "firstName" | "lastName")[] = [];
-    if (!username) missing.push("username");
-    if (!email) missing.push("email");
-    if (!firstName) missing.push("firstName");
-    if (!lastName) missing.push("lastName");
+
+    // Prefer server/profile values first, then local inputs
+    const valUsername = profile?.username ?? username;
+    const valEmail = profile?.email ?? email;
+    const valFirst = profile?.firstName ?? firstName;
+    const valLast = profile?.lastName ?? lastName;
+
+    if (!valUsername) missing.push("username");
+    if (!valEmail) missing.push("email");
+    if (!valFirst) missing.push("firstName");
+    if (!valLast) missing.push("lastName");
     return missing;
   };
 
   const handleSave = async () => {
-    if (!sub) return;
-    const toSave: any = { sub };
+    // Merge latest profile with edited values
+    const targetSub = sub || authSub;
+    if (!targetSub) return;
+    const toSave: any = { sub: targetSub };
     if (username) toSave.username = username;
     if (email) toSave.email = email;
     if (firstName) toSave.firstName = firstName;
@@ -146,6 +195,14 @@ export default function CompleteProfile() {
         const text = await resp.text().catch(() => "");
         throw new Error(`Save failed: ${resp.status} ${text}`);
       }
+
+      // After save, refresh AuthProvider's view of the profile
+      try {
+        await checkProfile();
+      } catch (e) {
+        console.warn("checkProfile after save failed:", e);
+      }
+
       // On success, go to logged-in page
       router.replace("/logged-in");
     } catch (err: any) {

@@ -4,8 +4,6 @@ import {
   signInWithRedirect,
   signUp,
 } from "aws-amplify/auth";
-import { Hub } from "aws-amplify/utils";
-
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -18,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAuth } from "../components/AuthProvider";
 import {
   clearPendingSignup,
   getPendingSignup,
@@ -28,43 +27,19 @@ type AuthMode = "signin" | "signup" | "confirm";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const { checkingProfile } = useAuth();
   const [authMode, setAuthMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   useEffect(() => {
-    // Listen for auth events (OAuth redirect flows)
-    const hubListener = Hub.listen("auth", ({ payload }) => {
-      // log for debug
-      try {
-        console.debug("Login Hub event:", payload.event, payload);
-      } catch (err) {
-        /* ignore */
-      }
-
-      // When a sign-in redirect completes we may momentarily be back on the
-      // Login screen while the `AuthProvider` checks the profile and
-      // navigates — show a loading indicator so the user isn't confused.
-      const loadingEvents = [
-        "signIn",
-        "signInWithRedirect",
-        "autoSignIn",
-        "cognitoHostedUI",
-        "oauthSignIn",
-      ];
-      if (loadingEvents.includes(payload.event)) {
-        setLoading(true);
-      }
-
-      if (payload.event === "signedOut" || payload.event === "signIn_failure") {
-        setLoading(false);
-      }
-    });
-    setLoading(false);
-    return () => hubListener();
-  }, [router]);
+    // Login component no longer listens to Hub; AuthProvider centralizes auth events.
+    // Show spinner while the global auth check is in progress to avoid user confusion.
+    if (checkingProfile) setLoading(true);
+    else setLoading(false);
+  }, [checkingProfile]);
 
   // Defensive check: if a pending signup exists on app start, restore the confirm flow
   useEffect(() => {
@@ -646,7 +621,7 @@ export default function LoginScreen() {
     }
   };
 
-  if (loading) {
+  if (loading || checkingProfile) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#007AFF" />

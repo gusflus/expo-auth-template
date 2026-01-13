@@ -11,6 +11,7 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
+import { useAuth } from "../components/AuthProvider";
 
 type AuthMode = "signin" | "signup" | "confirm";
 
@@ -329,36 +330,11 @@ export default function HomeScreen() {
     }
   };
 
+  const { signOutLocal } = useAuth();
+
   const handleSignOut = async () => {
     try {
-      // Local sign-out: clear likely Amplify storage keys and dispatch 'signedOut'
-      try {
-        const keys = await AsyncStorage.getAllKeys();
-        const removal = keys.filter(
-          (k) =>
-            k.startsWith("CognitoIdentityServiceProvider") ||
-            k.includes("CognitoIdentityId") ||
-            k.includes("aws-amplify") ||
-            k.includes("amplify") ||
-            k.includes("idToken") ||
-            k.includes("accessToken") ||
-            k.includes("refreshToken")
-        );
-        if (removal.length) {
-          await AsyncStorage.multiRemove(removal).catch((e) =>
-            console.warn("AsyncStorage.multiRemove failed:", e)
-          );
-        }
-      } catch (e) {
-        console.warn("Local storage clear failed:", e);
-      }
-
-      try {
-        Hub.dispatch("auth", { event: "signedOut" }, "Auth");
-      } catch (e) {
-        console.warn("Hub.dispatch signedOut failed:", e);
-      }
-
+      await signOutLocal();
       setUser(null);
       setJwtToken(null);
     } catch (error) {

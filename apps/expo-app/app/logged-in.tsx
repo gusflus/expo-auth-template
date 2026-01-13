@@ -1,5 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Hub } from "aws-amplify";
 import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -11,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAuth } from "../components/AuthProvider";
 
 export default function LoggedInScreen() {
   const router = useRouter();
@@ -52,40 +51,12 @@ export default function LoggedInScreen() {
     init();
   }, [router]);
 
+  const { signOutLocal } = useAuth();
+
   const handleSignOut = async () => {
     try {
       setLoading(true);
-
-      // Attempt a pure local sign-out by clearing stored Auth tokens directly and
-      // dispatching an auth 'signedOut' event — avoids invoking the Hosted UI.
-      try {
-        const keys = await AsyncStorage.getAllKeys();
-        const removal = keys.filter(
-          (k) =>
-            k.startsWith("CognitoIdentityServiceProvider") ||
-            k.includes("CognitoIdentityId") ||
-            k.includes("aws-amplify") ||
-            k.includes("amplify") ||
-            k.includes("idToken") ||
-            k.includes("accessToken") ||
-            k.includes("refreshToken")
-        );
-        if (removal.length) {
-          await AsyncStorage.multiRemove(removal).catch((e) =>
-            console.warn("AsyncStorage.multiRemove failed:", e)
-          );
-        }
-      } catch (e) {
-        console.warn("Local storage clear failed:", e);
-      }
-
-      try {
-        // Instruct Amplify that the user is signed out
-        Hub.dispatch("auth", { event: "signedOut" }, "Auth");
-      } catch (e) {
-        console.warn("Hub.dispatch signedOut failed:", e);
-      }
-
+      await signOutLocal();
       router.replace("/login");
     } catch (err: any) {
       console.warn("Sign out error (fallback), navigating to login", err);
