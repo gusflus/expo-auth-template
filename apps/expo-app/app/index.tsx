@@ -332,7 +332,33 @@ export default function HomeScreen() {
 
   const handleSignOut = async () => {
     try {
-      await signOut();
+      // Local sign-out: clear likely Amplify storage keys and dispatch 'signedOut'
+      try {
+        const keys = await AsyncStorage.getAllKeys();
+        const removal = keys.filter((k) =>
+          k.startsWith("CognitoIdentityServiceProvider") ||
+          k.includes("CognitoIdentityId") ||
+          k.includes("aws-amplify") ||
+          k.includes("amplify") ||
+          k.includes("idToken") ||
+          k.includes("accessToken") ||
+          k.includes("refreshToken")
+        );
+        if (removal.length) {
+          await AsyncStorage.multiRemove(removal).catch((e) =>
+            console.warn("AsyncStorage.multiRemove failed:", e)
+          );
+        }
+      } catch (e) {
+        console.warn("Local storage clear failed:", e);
+      }
+
+      try {
+        Hub.dispatch("auth", { event: "signedOut" }, "Auth");
+      } catch (e) {
+        console.warn("Hub.dispatch signedOut failed:", e);
+      }
+
       setUser(null);
       setJwtToken(null);
     } catch (error) {

@@ -69,7 +69,17 @@ export default function AuthProvider({ children }: AuthProviderProps) {
           console.debug("AuthProvider: get-user status=", resp.status);
           if (resp.status === 403) {
             // Profile incomplete — force completion page
-            safeNavigate("/complete-profile");
+            // Attempt to include helpful prefill data from the id token so the
+            // CompleteProfile screen can render immediately without waiting on
+            // the backend fetch.
+            const payload = idTokenObj?.payload ?? {};
+            const q = new URLSearchParams();
+            if (payload.email) q.set("email", payload.email);
+            const first = payload.given_name || (payload.name ? payload.name.split(" ")[0] : undefined);
+            const last = payload.family_name || (payload.name ? payload.name.split(" ").slice(1).join(" ") : undefined);
+            if (first) q.set("firstName", first);
+            if (last) q.set("lastName", last);
+            safeNavigate(`/complete-profile?${q.toString()}`);
             return;
           } else if (resp.ok) {
             // Profile is complete — proceed to logged-in area

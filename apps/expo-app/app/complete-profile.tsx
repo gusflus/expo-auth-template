@@ -1,6 +1,6 @@
 import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { useEffect, useState, useRef } from "react";
 import {
   Alert,
   ScrollView,
@@ -30,27 +30,36 @@ export default function CompleteProfile() {
 
   const apiBase = process.env.EXPO_PUBLIC_APPLE_AUTH_API_URL;
 
+  // No automatic redirect: the user must confirm and click Save to complete their profile.
+
+  // Use any prefill query params first so the UI appears instantly after redirect
+  const params = useLocalSearchParams();
+
   useEffect(() => {
     (async () => {
       try {
+        // Apply immediate prefill values from query params (if provided)
+        if (params.email) setEmail(params.email as string);
+        if (params.firstName) setFirstName(params.firstName as string);
+        if (params.lastName) setLastName(params.lastName as string);
+
         const session = await fetchAuthSession();
         const idTokenObj = (session as any)?.tokens?.idToken;
         const payload = idTokenObj?.payload ?? {};
         const mySub = payload.sub || (await getCurrentUser()).userId;
         setSub(mySub);
 
-        // Pre-fill from id token if present
-        if (payload.email) setEmail(payload.email);
-        if (payload.name) {
+        // Pre-fill from id token if present (doesn't overwrite query params)
+        if (!email && payload.email) setEmail(payload.email);
+        if (!firstName && payload.name) {
           // try to split into first/last
           const parts = (payload.name as string).split(" ");
           if (parts.length) setFirstName(parts[0]);
           if (parts.length > 1) setLastName(parts.slice(1).join(" "));
         }
-        if (payload.given_name) setFirstName(payload.given_name);
-        if (payload.family_name) setLastName(payload.family_name);
-        if (payload["cognito:username"])
-          setUsername(payload["cognito:username"]);
+        if (!firstName && payload.given_name) setFirstName(payload.given_name);
+        if (!lastName && payload.family_name) setLastName(payload.family_name);
+        if (!username && payload["cognito:username"]) setUsername(payload["cognito:username"]);
 
         // Fetch existing profile from our API (Dynamo) to see what's stored
         if (apiBase && mySub) {
@@ -100,7 +109,7 @@ export default function CompleteProfile() {
         setLoading(false);
       }
     })();
-  }, [apiBase, router]);
+  }, [apiBase, router, params]);
 
   // Determine which fields are missing and need user input
   const missingFields = (): (
@@ -155,11 +164,8 @@ export default function CompleteProfile() {
   }
 
   const need = initialMissing.length ? initialMissing : missingFields();
-  if (!need.length) {
-    // Nothing missing — go to logged-in
-    router.replace("/logged-in");
-    return null;
-  }
+  // No automatic redirect: allow the user to review autofilled values and
+  // click Save when they are ready.
 
   return (
     <ScrollView
@@ -168,44 +174,46 @@ export default function CompleteProfile() {
     >
       <Text style={styles.title}>Complete Your Profile</Text>
       <Text style={{ marginBottom: 10 }}>
-        Please provide the missing information so we can finish setting up your
-        account.
+        Please confirm or update your information so we can finish setting up
+        your account.
       </Text>
 
-      {need.includes("username") && (
-        <TextInput
-          style={styles.input}
-          placeholder="Username"
-          value={username ?? ""}
-          onChangeText={setUsername as any}
-          autoCapitalize="none"
-        />
-      )}
-      {need.includes("email") && (
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email ?? ""}
-          onChangeText={setEmail as any}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-      )}
-      {need.includes("firstName") && (
-        <TextInput
-          style={styles.input}
-          placeholder="First name"
-          value={firstName ?? ""}
-          onChangeText={setFirstName as any}
-        />
-      )}
-      {need.includes("lastName") && (
-        <TextInput
-          style={styles.input}
-          placeholder="Last name"
-          value={lastName ?? ""}
-          onChangeText={setLastName as any}
-        />
+      {/* Always show all fields so users can confirm autofilled values */}
+      <TextInput
+        style={styles.input}
+        placeholder="Username"
+        value={username ?? ""}
+        onChangeText={setUsername as any}
+        autoCapitalize="none"
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Email"
+        value={email ?? ""}
+        onChangeText={setEmail as any}
+        keyboardType="email-address"
+        autoCapitalize="none"
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="First name"
+        value={firstName ?? ""}
+        onChangeText={setFirstName as any}
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Last name"
+        value={lastName ?? ""}
+        onChangeText={setLastName as any}
+      />
+
+      {need.length === 0 && (
+        <Text style={{ marginBottom: 12, color: "#666", textAlign: "center" }}>
+          All fields are filled — please verify and click Save to complete setup.
+        </Text>
       )}
 
       <TouchableOpacity

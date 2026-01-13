@@ -5,10 +5,11 @@ import {
   signUp,
 } from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
-import * as AppleAuthentication from "expo-apple-authentication";
+
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
@@ -36,9 +37,29 @@ export default function LoginScreen() {
   useEffect(() => {
     // Listen for auth events (OAuth redirect flows)
     const hubListener = Hub.listen("auth", ({ payload }) => {
-      // No direct navigation here — AuthProvider handles redirects centrally
-      if (payload.event === "signedOut") {
-        // noop
+      // log for debug
+      try {
+        console.debug("Login Hub event:", payload.event, payload);
+      } catch (err) {
+        /* ignore */
+      }
+
+      // When a sign-in redirect completes we may momentarily be back on the
+      // Login screen while the `AuthProvider` checks the profile and
+      // navigates — show a loading indicator so the user isn't confused.
+      const loadingEvents = [
+        "signIn",
+        "signInWithRedirect",
+        "autoSignIn",
+        "cognitoHostedUI",
+        "oauthSignIn",
+      ];
+      if (loadingEvents.includes(payload.event)) {
+        setLoading(true);
+      }
+
+      if (payload.event === "signedOut" || payload.event === "signIn_failure") {
+        setLoading(false);
       }
     });
     setLoading(false);
@@ -79,51 +100,53 @@ export default function LoginScreen() {
     try {
       setLoading(true);
 
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
+      // const credential = await AppleAuthentication.signInAsync({
+      //   requestedScopes: [
+      //     AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+      //     AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      //   ],
+      // });
 
-      const apiUrl = process.env.EXPO_PUBLIC_APPLE_AUTH_API_URL;
-      const response = await fetch(`${apiUrl}/apple-auth`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identityToken: credential.identityToken }),
-      });
+      // const apiUrl = process.env.EXPO_PUBLIC_APPLE_AUTH_API_URL;
+      // const response = await fetch(`${apiUrl}/apple-auth`, {
+      //   method: "POST",
+      //   headers: { "Content-Type": "application/json" },
+      //   body: JSON.stringify({ identityToken: credential.identityToken }),
+      // });
 
-      if (response.status === 409) {
-        const conflict = await response.json().catch(() => null);
-        const existing = (conflict?.existingProviders || []) as string[];
-        if (existing.some((p) => p.toLowerCase().includes("google"))) {
-          Alert.alert(
-            "Account exists",
-            "An account with this email exists using Google. Would you like to sign in with Google instead?",
-            [
-              { text: "Sign in with Google", onPress: handleGoogleSignIn },
-              { text: "Cancel", style: "cancel" },
-            ]
-          );
-        } else {
-          Alert.alert(
-            "Account exists",
-            conflict?.message || "Please sign in with your existing provider."
-          );
-        }
-        setLoading(false);
-        return;
-      }
+      // if (response.status === 409) {
+      //   const conflict = await response.json().catch(() => null);
+      //   const existing = (conflict?.existingProviders || []) as string[];
+      //   if (existing.some((p) => p.toLowerCase().includes("google"))) {
+      //     Alert.alert(
+      //       "Account exists",
+      //       "An account with this email exists using Google. Would you like to sign in with Google instead?",
+      //       [
+      //         { text: "Sign in with Google", onPress: handleGoogleSignIn },
+      //         { text: "Cancel", style: "cancel" },
+      //       ]
+      //     );
+      //   } else {
+      //     Alert.alert(
+      //       "Account exists",
+      //       conflict?.message || "Please sign in with your existing provider."
+      //     );
+      //   }
+      //   setLoading(false);
+      //   return;
+      // }
 
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Backend error: ${response.status} - ${text}`);
-      }
+      // if (!response.ok) {
+      //   const text = await response.text();
+      //   throw new Error(`Backend error: ${response.status} - ${text}`);
+      // }
 
-      // Success — use Hosted UI redirect for Apple since the modular Amplify build
-      // used here doesn't expose `Auth.federatedSignIn`. This keeps parity with
-      // Google (which uses Hosted UI via `signInWithRedirect`).
-      console.debug("Apple Sign In: falling back to Hosted UI redirect (signInWithRedirect)");
+      // // Success — use Hosted UI redirect for Apple since the modular Amplify build
+      // // used here doesn't expose `Auth.federatedSignIn`. This keeps parity with
+      // // Google (which uses Hosted UI via `signInWithRedirect`).
+      // console.debug(
+      //   "Apple Sign In: falling back to Hosted UI redirect (signInWithRedirect)"
+      // );
       try {
         // Use the Amplify provider name configured in `amplify-config` ("Apple")
         await signInWithRedirect({ provider: "Apple" });
@@ -132,7 +155,10 @@ export default function LoginScreen() {
         return;
       } catch (err) {
         console.warn("signInWithRedirect failed:", err);
-        Alert.alert("Apple Sign In Error", "Failed to start Hosted UI sign-in. Please try again.");
+        Alert.alert(
+          "Apple Sign In Error",
+          "Failed to start Hosted UI sign-in. Please try again."
+        );
         setLoading(false);
         return;
       }
@@ -622,8 +648,9 @@ export default function LoginScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <Text>Loading...</Text>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Completing sign-in…</Text>
       </View>
     );
   }
@@ -789,4 +816,15 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: "#fff", fontWeight: "600" },
   linkText: { color: "#007AFF", textAlign: "center", marginTop: 6 },
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f5f5f5",
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: "#333",
+  },
 });
