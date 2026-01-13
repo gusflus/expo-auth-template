@@ -26,7 +26,7 @@ const cognitoIdp = new CognitoIdentityProviderClient({
 
 // Optional DynamoDB client to persist user records if a table is configured
 let ddbClient: DynamoDBDocumentClient | null = null;
-if (process.env.USERS_TABLE_NAME) {
+if (process.env.TABLE_NAME) {
   const lowLevel = new DynamoDBClient({ region: process.env.AWS_REGION });
   ddbClient = DynamoDBDocumentClient.from(lowLevel);
 }
@@ -64,33 +64,32 @@ async function verifyAppleToken(identityToken: string): Promise<any> {
     console.info("Apple token has no aud claim");
   }
 
-  // jsonwebtoken expects audience to be a string, regex, or a tuple starting with a string/regexp.
-  const audienceOption:
+  // jsonwebtoken expects audience to be a string, regex, or an array/tuple.
+  // If we don't have any configured audiences, omit the audience option so jwt.verify won't enforce it.
+  let audienceOption:
+    | undefined
     | string
     | RegExp
-    | [string | RegExp, ...(string | RegExp)[]] =
-    allowedAudiences.length === 0
-      ? (process.env.APPLE_CLIENT_ID as string)
-      : allowedAudiences.length === 1
-      ? allowedAudiences[0]
-      : (allowedAudiences as [string, ...string[]]);
+    | [string | RegExp, ...(string | RegExp)[]];
+  if (allowedAudiences.length === 0) {
+    audienceOption = undefined;
+  } else if (allowedAudiences.length === 1) {
+    audienceOption = allowedAudiences[0] as string;
+  } else {
+    audienceOption = allowedAudiences as [string, ...string[]];
+  }
+
+  const verifyOptions: any = { issuer: "https://appleid.apple.com" };
+  if (audienceOption) verifyOptions.audience = audienceOption;
 
   return new Promise((resolve, reject) => {
-    jwt.verify(
-      identityToken,
-      getKey,
-      {
-        issuer: "https://appleid.apple.com",
-        audience: audienceOption,
-      },
-      (err, decoded) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(decoded);
-        }
+    jwt.verify(identityToken, getKey, verifyOptions, (err, decoded) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(decoded);
       }
-    );
+    });
   });
 }
 
@@ -304,9 +303,10 @@ export const handler = async (
 
             await ddbClient.send(
               new PutCommand({
-                TableName: process.env.USERS_TABLE_NAME,
+                TableName: process.env.TABLE_NAME,
                 Item: {
-                  sub: decodedToken.sub,
+                  id: decodedToken.sub,
+                  entityType: "USER",
                   username: userPoolUsername,
                   email: decodedToken.email,
                   firstName,
@@ -323,6 +323,12 @@ export const handler = async (
         console.warn("Failed to ensure user in User Pool:", err);
       }
     }
+
+    // Server-side token exchange is disabled for client-side federated flow.
+    // We do not set passwords or call AdminInitiateAuth for federated users here.
+    // The client should perform federated sign-in (for example, using Amplify's
+    // `Auth.federatedSignIn` or the Cognito Hosted UI) with the Apple identity
+    // token to obtain User Pool tokens when needed.
 
     // Get Cognito Identity ID
     const getIdCommand = new GetIdCommand({

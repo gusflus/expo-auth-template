@@ -1,6 +1,6 @@
 # Expo Auth Template — Overview & Docs ✨
 
-A compact example app demonstrating Cognito-based authentication, provider sign-in (Google & Apple), a simple Datastore (DynamoDB "Users" table), and an Expo client which enforces a "profile complete" workflow.
+A compact example app demonstrating Cognito-based authentication, provider sign-in (Google & Apple), a simple Datastore (DynamoDB generic `Data` table), and an Expo client which enforces a "profile complete" workflow.
 
 ---
 
@@ -18,7 +18,47 @@ A compact example app demonstrating Cognito-based authentication, provider sign-
 
 ## What this repository contains
 
-- `lib/constructs/*` — CDK constructs for **AuthResources** (Cognito + Identity Pool + client) and **DatastoreResources** (Dynamo Users table).
+- `lib/constructs/*` — CDK constructs for **AuthResources** (Cognito + Identity Pool + client), **ApiResources** (API Gateway) and **DatastoreResources** (Dynamo Users table).
+
+Usage notes for `AuthResources` construct:
+
+- The construct accepts props which must be supplied by the consuming stack (resolve environment variables at the Stack level and pass them in). This keeps environment-var access centralized in your Stack and avoids surprises inside the construct (the repo remains the source of truth during local development).
+
+- Secrets should be supplied as `cdk.SecretValue` instances in production (recommended). For local convenience, the construct will accept a string and convert it to `SecretValue.unsafePlainText` when building `SecretValue` is helpful, but prefer `SecretValue.secretsManager(...)` for production secrets. Examples:
+
+```ts
+new AuthResources(stack, "AuthResources", {
+  domainPrefix: "myapp-auth",
+  googleClientId: process.env.GOOGLE_CLIENT_ID,
+  googleClientSecret: cdk.SecretValue.secretsManager("my/google/secret"), // production
+  callbackUrls: ["https://myapp.example/callback"],
+});
+```
+
+- The construct exposes important objects so a consumer can extend them (for example attach routes to `appleAuthApi` or add permissions to `replaceUnconfirmedLambda`): `appleAuthLambda`, `checkEmailLambda`, `replaceUnconfirmedLambda`, `getUserLambda`, `updateUserLambda`, and `appleAuthApi`.
+
+Usage notes for `ApiResources` construct:
+
+- The `props` object must be supplied by the consuming Stack (resolve env vars in the Stack and pass them in). This construct will not read deployment environment variables directly.
+
+- Props:
+
+  - `restApiName?: string` — override API name (default: "ExpoAuthTemplateApi").
+  - `createAuthorizer?: boolean` — when true and `userPool` is supplied, the construct creates and exposes a Cognito `authorizer`.
+
+- The `api` property is exposed and consumers can add routes or integrations as needed.
+
+Usage notes for `DatastoreResources` construct:
+
+- The `props` object should be supplied by the consuming Stack (the construct will not read deployment env vars directly).
+
+- Props:
+
+  - `tableName?: string` — specify a concrete DynamoDB table name (optional).
+  - `removalPolicy?: cdk.RemovalPolicy` — override removal policy (default: RETAIN).
+
+- The `table` is exposed and includes `email-index` and `username-index` GSIs by default for lookups.
+
 - `lambda/` — Lambda handlers packed and deployed by CDK (Apple auth, get-user, update-user, post-confirm, check-email, etc.).
 - `apps/expo-app/` — Expo (React Native) client demonstrating sign-up, confirmation, OAuth provider flows, and profile completion pages.
 - CDK app entrypoint at `bin/expo-auth-template.ts` and stack in `lib/`.
@@ -35,7 +75,7 @@ High level:
 - An API (via Lambda + API Gateway) exposes endpoints for `GET /user` and `POST /user` to read and update profile data.
 - The Expo app uses Amplify for client auth flows and calls the API to enforce a `profile_complete` workflow.
 
-Data model: DynamoDB Users table keyed by `sub` (Cognito subject). A GSI on `email` is available for lookups.
+Data model: Generic DynamoDB `Data` table keyed by `id`. User items use `entityType = "USER"` and `id` = Cognito `sub`. A GSI on `email` is available for lookups.
 
 ---
 
@@ -66,11 +106,17 @@ Notes:
 
 Set these in your environment or CI before `cdk deploy` or local run of Lambdas. Example names (used in CDK):
 
-- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
-- `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_BUNDLE_ID` (or `APPLE_SERVICE_ID`)
+- `REST_API_NAME` (required)
+- `DOMAIN_PREFIX` (optional; if omitted a unique prefix is generated from the stack name and account id)
+- `APP_CALLBACK_URLS` (optional, comma-separated list; defaults to common localhost and app scheme callbacks detected from `apps/expo-app/app.json`)
+- `APP_LOGOUT_URLS` (optional, comma-separated list; defaults to the same as callback URLs)
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (optional; required only if using Google IdP)
+- `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_BUNDLE_ID` (or `APPLE_SERVICE_ID`) (optional; required only if using Apple IdP)
 - `APPLE_PROVIDER_NAME` (optional)
 
-Also, CDK will create resources with ARNs and environment injection for Lambdas (e.g., `USERS_TABLE_NAME` when Datastore construct is included).
+Notes: The Stack will now resolve required env variables at synth/deploy time and will throw if mandatory values are missing — this ensures constructs are always provided explicit configuration rather than relying on internal defaults.
+
+Also, CDK will create resources with ARNs and environment injection for Lambdas (e.g., `TABLE_NAME` when Datastore construct is included).
 
 ---
 

@@ -1,23 +1,26 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 
-export class DatastoreResources extends Construct {
-  public readonly usersTable: cdk.aws_dynamodb.Table;
+interface DatastoreResourcesProps {
+  removalPolicy: cdk.RemovalPolicy;
+}
 
-  constructor(scope: Construct, id: string) {
+export class DatastoreResources extends Construct {
+  public readonly table: cdk.aws_dynamodb.Table;
+
+  constructor(scope: Construct, id: string, props: DatastoreResourcesProps) {
     super(scope, id);
 
-    this.usersTable = new cdk.aws_dynamodb.Table(this, "UsersTable", {
+    this.table = new cdk.aws_dynamodb.Table(this, "Table", {
       partitionKey: {
-        name: "sub",
+        name: "id",
         type: cdk.aws_dynamodb.AttributeType.STRING,
       },
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      removalPolicy: props.removalPolicy,
       billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
     });
 
-    // Add a GSI on email so we can lookup users by email if needed
-    this.usersTable.addGlobalSecondaryIndex({
+    this.table.addGlobalSecondaryIndex({
       indexName: "email-index",
       partitionKey: {
         name: "email",
@@ -26,8 +29,27 @@ export class DatastoreResources extends Construct {
       projectionType: cdk.aws_dynamodb.ProjectionType.ALL,
     });
 
-    new cdk.CfnOutput(this, "UsersTableName", {
-      value: this.usersTable.tableName,
+    // GSI to query by username (unique identifier for user profiles)
+    this.table.addGlobalSecondaryIndex({
+      indexName: "username-index",
+      partitionKey: {
+        name: "username",
+        type: cdk.aws_dynamodb.AttributeType.STRING,
+      },
+      projectionType: cdk.aws_dynamodb.ProjectionType.ALL,
+    });
+
+    this.table.addGlobalSecondaryIndex({
+      indexName: "entityType-index",
+      partitionKey: {
+        name: "entityType",
+        type: cdk.aws_dynamodb.AttributeType.STRING,
+      },
+      projectionType: cdk.aws_dynamodb.ProjectionType.ALL,
+    });
+
+    new cdk.CfnOutput(this, "TableName", {
+      value: this.table.tableName,
     });
   }
 }

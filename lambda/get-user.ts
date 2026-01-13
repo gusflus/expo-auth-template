@@ -2,11 +2,11 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
   DynamoDBDocumentClient,
   GetCommand,
-  ScanCommand,
+  QueryCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 
-const TABLE = process.env.USERS_TABLE_NAME;
+const TABLE = process.env.TABLE_NAME;
 let ddb: DynamoDBDocumentClient | null = null;
 if (TABLE) {
   const client = new DynamoDBClient({ region: process.env.AWS_REGION });
@@ -20,7 +20,7 @@ export const handler = async (
     if (!ddb || !TABLE) {
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: "USERS_TABLE_NAME not configured" }),
+        body: JSON.stringify({ error: "TABLE_NAME not configured" }),
       };
     }
 
@@ -40,7 +40,7 @@ export const handler = async (
     // If sub provided, fetch by primary key
     if (sub) {
       const resp = await ddb.send(
-        new GetCommand({ TableName: TABLE, Key: { sub } })
+        new GetCommand({ TableName: TABLE, Key: { id: sub } })
       );
       const item = resp.Item ?? null;
 
@@ -76,18 +76,20 @@ export const handler = async (
       };
     }
 
-    // If username provided, perform a Scan (small table assumption). In production, prefer a GSI on username.
+    // If username provided, query the username GSI (faster than Scan)
     if (username) {
-      const scanResp = await ddb.send(
-        new ScanCommand({
+      const queryResp = await ddb.send(
+        new QueryCommand({
           TableName: TABLE,
-          FilterExpression: "#u = :u",
-          ExpressionAttributeNames: { "#u": "username" },
-          ExpressionAttributeValues: { ":u": username },
+          IndexName: "username-index",
+          KeyConditionExpression: "#u = :u",
+          FilterExpression: "#t = :t",
+          ExpressionAttributeNames: { "#u": "username", "#t": "entityType" },
+          ExpressionAttributeValues: { ":u": username, ":t": "USER" },
           Limit: 1,
         })
       );
-      const item = scanResp.Items?.[0] ?? null;
+      const item = queryResp.Items?.[0] ?? null;
       if (item) {
         const missing: string[] = [];
         if (!item.username) missing.push("username");

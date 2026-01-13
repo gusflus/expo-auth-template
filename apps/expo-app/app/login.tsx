@@ -120,8 +120,22 @@ export default function LoginScreen() {
         throw new Error(`Backend error: ${response.status} - ${text}`);
       }
 
-      // Success — go to logged-in page
-      router.replace("/logged-in");
+      // Success — use Hosted UI redirect for Apple since the modular Amplify build
+      // used here doesn't expose `Auth.federatedSignIn`. This keeps parity with
+      // Google (which uses Hosted UI via `signInWithRedirect`).
+      console.debug("Apple Sign In: falling back to Hosted UI redirect (signInWithRedirect)");
+      try {
+        // Use the Amplify provider name configured in `amplify-config` ("Apple")
+        await signInWithRedirect({ provider: "Apple" });
+        // Hosted UI will redirect back and AuthProvider will handle navigation on sign-in events
+        setLoading(false);
+        return;
+      } catch (err) {
+        console.warn("signInWithRedirect failed:", err);
+        Alert.alert("Apple Sign In Error", "Failed to start Hosted UI sign-in. Please try again.");
+        setLoading(false);
+        return;
+      }
     } catch (e: any) {
       if (e.code === "ERR_REQUEST_CANCELED") {
         setLoading(false);

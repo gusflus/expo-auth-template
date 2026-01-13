@@ -2,11 +2,15 @@ import {
   AdminUpdateUserAttributesCommand,
   CognitoIdentityProviderClient,
 } from "@aws-sdk/client-cognito-identity-provider";
-import { DynamoDBClient, ScanCommand } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import {
+  DynamoDBDocumentClient,
+  QueryCommand,
+  UpdateCommand,
+} from "@aws-sdk/lib-dynamodb";
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 
-const TABLE = process.env.USERS_TABLE_NAME;
+const TABLE = process.env.TABLE_NAME;
 const USER_POOL_ID = process.env.USER_POOL_ID;
 let ddb: DynamoDBDocumentClient | null = null;
 if (TABLE) {
@@ -25,7 +29,7 @@ export const handler = async (
     if (!ddb || !TABLE) {
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: "USERS_TABLE_NAME not configured" }),
+        body: JSON.stringify({ error: "TABLE_NAME not configured" }),
       };
     }
 
@@ -75,18 +79,20 @@ export const handler = async (
     // If caller provided username but not sub, try to find the sub by scanning Username (small-scale)
     let targetSub = sub;
     if (!targetSub && username) {
-      // Scan for username
+      // Query username GSI for the user id
       const findResp = await ddb.send(
-        new ScanCommand({
+        new QueryCommand({
           TableName: TABLE,
-          FilterExpression: "#u = :u",
-          ExpressionAttributeNames: { "#u": "username" },
-          ExpressionAttributeValues: { ":u": username },
+          IndexName: "username-index",
+          KeyConditionExpression: "#u = :u",
+          FilterExpression: "#t = :t",
+          ExpressionAttributeNames: { "#u": "username", "#t": "entityType" },
+          ExpressionAttributeValues: { ":u": username, ":t": "USER" },
           Limit: 1,
         })
       );
       targetSub =
-        (findResp.Items && findResp.Items[0] && findResp.Items[0].sub) || null;
+        (findResp.Items && findResp.Items[0] && findResp.Items[0].id) || null;
       if (!targetSub) {
         return {
           statusCode: 404,
@@ -98,7 +104,7 @@ export const handler = async (
     await ddb.send(
       new UpdateCommand({
         TableName: TABLE,
-        Key: { sub: targetSub },
+        Key: { id: targetSub },
         UpdateExpression: `SET ${updateExprParts.join(", ")}`,
         ExpressionAttributeNames: exprAttrNames,
         ExpressionAttributeValues: exprAttrValues,

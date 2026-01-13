@@ -4,9 +4,9 @@ import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 // Cognito Post Confirmation Lambda has a slightly different signature; using any for simplicity
 export const handler = async (event: any) => {
   try {
-    const TABLE = process.env.USERS_TABLE_NAME;
+    const TABLE = process.env.TABLE_NAME;
     if (!TABLE) {
-      console.warn("USERS_TABLE_NAME not configured");
+      console.warn("TABLE_NAME not configured");
       return event;
     }
 
@@ -18,7 +18,8 @@ export const handler = async (event: any) => {
     if (!sub) return event;
 
     const item: any = {
-      sub,
+      id: sub,
+      entityType: "USER",
       username: event.userName,
       email: userAttrs.email,
       firstName: userAttrs.given_name || userAttrs.name || undefined,
