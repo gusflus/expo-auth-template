@@ -1,3 +1,4 @@
+import { useAuth } from "auth";
 import {
   confirmSignUp,
   fetchAuthSession,
@@ -11,7 +12,6 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
-import { useAuth } from "auth";
 
 type AuthMode = "signin" | "signup" | "confirm";
 

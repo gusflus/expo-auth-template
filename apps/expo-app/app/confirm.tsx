@@ -1,3 +1,4 @@
+import { clearPendingSignup, getPendingSignup, setPendingSignup } from "auth";
 import { confirmSignUp, resendSignUpCode, signIn } from "aws-amplify/auth";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -9,11 +10,6 @@ import {
   TextInput,
   TouchableOpacity,
 } from "react-native";
-import {
-  clearPendingSignup,
-  getPendingSignup,
-  setPendingSignup,
-} from "auth";
 
 export default function ConfirmScreen() {
   const router = useRouter();

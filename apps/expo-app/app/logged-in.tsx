@@ -1,3 +1,4 @@
+import { useAuth } from "auth";
 import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -9,7 +10,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth } from "auth";
 
 export default function LoggedInScreen() {
   const router = useRouter();

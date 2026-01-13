@@ -1,4 +1,10 @@
 import {
+  clearPendingSignup,
+  getPendingSignup,
+  setPendingSignup,
+  useAuth,
+} from "auth";
+import {
   resendSignUpCode,
   signIn,
   signInWithRedirect,
@@ -16,12 +22,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth } from "auth";
-import {
-  clearPendingSignup,
-  getPendingSignup,
-  setPendingSignup,
-} from "auth";
 
 type AuthMode = "signin" | "signup" | "confirm";
 
