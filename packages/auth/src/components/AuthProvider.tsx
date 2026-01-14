@@ -3,7 +3,7 @@ import { Amplify } from "aws-amplify";
 import { fetchAuthSession, getCurrentUser, signOut } from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
 import { useRouter } from "expo-router";
-import React, { ReactNode, useCallback, useEffect, useState } from "react";
+import React, { ReactNode, useCallback, useEffect, useState, useRef } from "react";
 import { getAuthConfig } from "../lib/amplify-config";
 import { getPendingSignup } from "../lib/pendingSignup";
 
@@ -49,6 +49,11 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   const [profile, setProfile] = useState<Profile>(null);
   const [profileStatus, setProfileStatus] = useState<ProfileStatus>("unknown");
 
+  // When we sign out locally, set this to true so the Hub listener ignores the
+  // resulting sign-out event and doesn't re-trigger `checkProfile` (which would
+  // momentarily show the loading spinner).
+  const suppressNextCheckRef = useRef(false);
+
   const safeNavigate = useCallback(
     (path: string) => {
       try {
@@ -64,7 +69,12 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     const API_BASE = process.env.EXPO_PUBLIC_APPLE_AUTH_API_URL;
     setCheckingProfile(true);
 
-    const MAX_ATTEMPTS = 5;
+    // If a Hosted UI redirect is in progress, give the auth flow a few
+    // attempts to resolve. Otherwise, don't retry repeatedly on benign
+    // "not authenticated" errors that occur on logout or cold start.
+    const redirectPending = (await AsyncStorage.getItem("auth:redirecting")) === "1";
+
+    const MAX_ATTEMPTS = redirectPending ? 5 : 1;
     let attempt = 0;
     while (attempt < MAX_ATTEMPTS) {
       try {
@@ -126,6 +136,11 @@ export default function AuthProvider({ children }: AuthProviderProps) {
               : undefined);
           if (first) q.set("firstName", first);
           if (last) q.set("lastName", last);
+          try {
+            await AsyncStorage.removeItem("auth:redirecting");
+          } catch (e) {
+            /* ignore */
+          }
           safeNavigate(`/complete-profile?${q.toString()}`);
           setCheckingProfile(false);
           return;
@@ -134,6 +149,11 @@ export default function AuthProvider({ children }: AuthProviderProps) {
           const item = body.item ?? {};
           setProfileStatus("complete");
           setProfile(item);
+          try {
+            await AsyncStorage.removeItem("auth:redirecting");
+          } catch (e) {
+            /* ignore */
+          }
           safeNavigate("/logged-in");
           setCheckingProfile(false);
           return;
@@ -162,6 +182,20 @@ export default function AuthProvider({ children }: AuthProviderProps) {
             msg
           );
 
+          // If we aren't in a redirect flow, the user is simply unauthenticated
+          // (logout or cold start). Navigate to login immediately to avoid
+          // showing a spinner.
+          if (!redirectPending) {
+            try {
+              await AsyncStorage.removeItem("auth:redirecting");
+            } catch (e) {
+              /* ignore */
+            }
+            safeNavigate("/login");
+            setCheckingProfile(false);
+            return;
+          }
+
           if (attempt < MAX_ATTEMPTS) {
             await new Promise((r) => setTimeout(r, 400));
             continue;
@@ -176,12 +210,23 @@ export default function AuthProvider({ children }: AuthProviderProps) {
           );
         }
 
+        try {
+          await AsyncStorage.removeItem("auth:redirecting");
+        } catch (e) {
+          /* ignore */
+        }
+
         safeNavigate("/login");
         setCheckingProfile(false);
         return;
       }
     }
 
+    try {
+      await AsyncStorage.removeItem("auth:redirecting");
+    } catch (e) {
+      /* ignore */
+    }
     safeNavigate("/login");
     setCheckingProfile(false);
   }, [safeNavigate]);
@@ -235,9 +280,29 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     }
 
     try {
+      // Prevent the Hub listener from triggering a follow-up profile check we already handled.
+      suppressNextCheckRef.current = true;
       Hub.dispatch("auth", { event: "signedOut" }, "Auth");
     } catch (e) {
       console.warn("Hub.dispatch signedOut failed:", e);
+      // If dispatch fails for any reason, don't leave the suppression flag set.
+      suppressNextCheckRef.current = false;
+    }
+
+    // Update local state and navigate immediately to avoid prolonged loading UI.
+    try {
+      setProfile(null);
+      setSub(null);
+      setProfileStatus("unknown");
+      setCheckingProfile(false);
+      try {
+        await AsyncStorage.removeItem("auth:redirecting");
+      } catch (e) {
+        /* ignore */
+      }
+      safeNavigate("/login");
+    } catch (e) {
+      console.warn("Immediate post-signout cleanup failed:", e);
     }
   }, []);
 
@@ -273,6 +338,17 @@ export default function AuthProvider({ children }: AuthProviderProps) {
           "signOut",
           "signedOut",
         ];
+
+        // If we intentionally signed out locally, ignore the resulting sign-out event
+        // to avoid triggering a profile check that would show a loading spinner.
+        if (
+          (payload.event === "signOut" || payload.event === "signedOut") &&
+          suppressNextCheckRef.current
+        ) {
+          suppressNextCheckRef.current = false;
+          return;
+        }
+
         if (eventsToCheck.includes(payload.event)) {
           setTimeout(checkProfile, 500);
         }

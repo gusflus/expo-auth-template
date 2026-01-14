@@ -10,8 +10,5 @@
     "expo-router": "*",
     "react": "*",
     "react-native": "*"
-  },
-  "scripts": {
-    "check-peer-deps": "node ./scripts/check-peer-deps.js"
   }
 }

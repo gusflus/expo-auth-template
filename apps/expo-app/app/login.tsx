@@ -12,6 +12,7 @@ import {
 } from "aws-amplify/auth";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator,
   Alert,
@@ -64,9 +65,15 @@ export default function LoginScreen() {
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
+      await AsyncStorage.setItem("auth:redirecting", "1");
       await signInWithRedirect({ provider: "Google" });
     } catch (error) {
       console.error("Sign in error:", error);
+      try {
+        await AsyncStorage.removeItem("auth:redirecting");
+      } catch (e) {
+        /* ignore */
+      }
       setLoading(false);
     }
   };
@@ -124,12 +131,18 @@ export default function LoginScreen() {
       // );
       try {
         // Use the Amplify provider name configured in `amplify-config` ("Apple")
+        await AsyncStorage.setItem("auth:redirecting", "1");
         await signInWithRedirect({ provider: "Apple" });
         // Hosted UI will redirect back and AuthProvider will handle navigation on sign-in events
         setLoading(false);
         return;
       } catch (err) {
         console.warn("signInWithRedirect failed:", err);
+        try {
+          await AsyncStorage.removeItem("auth:redirecting");
+        } catch (e) {
+          /* ignore */
+        }
         Alert.alert(
           "Apple Sign In Error",
           "Failed to start Hosted UI sign-in. Please try again."
@@ -625,7 +638,6 @@ export default function LoginScreen() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Completing sign-in…</Text>
       </View>
     );
   }

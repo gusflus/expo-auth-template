@@ -11,6 +11,7 @@ import { Hub } from "aws-amplify/utils";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert, StyleSheet, Text, View } from "react-native";
 
 type AuthMode = "signin" | "signup" | "confirm";
@@ -95,9 +96,15 @@ export default function HomeScreen() {
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
+      await AsyncStorage.setItem("auth:redirecting", "1");
       await signInWithRedirect({ provider: "Google" });
     } catch (error) {
       console.error("Sign in error:", error);
+      try {
+        await AsyncStorage.removeItem("auth:redirecting");
+      } catch (e) {
+        /* ignore */
+      }
       setLoading(false);
     }
   };
