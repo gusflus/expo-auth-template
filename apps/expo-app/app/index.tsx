@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "auth";
 import {
   confirmSignUp,
@@ -11,7 +12,6 @@ import { Hub } from "aws-amplify/utils";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert, StyleSheet, Text, View } from "react-native";
 
 type AuthMode = "signin" | "signup" | "confirm";

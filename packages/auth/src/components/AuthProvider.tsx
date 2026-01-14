@@ -3,7 +3,13 @@ import { Amplify } from "aws-amplify";
 import { fetchAuthSession, getCurrentUser, signOut } from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
 import { useRouter } from "expo-router";
-import React, { ReactNode, useCallback, useEffect, useState, useRef } from "react";
+import React, {
+  ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { getAuthConfig } from "../lib/amplify-config";
 import { getPendingSignup } from "../lib/pendingSignup";
 
@@ -72,7 +78,8 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     // If a Hosted UI redirect is in progress, give the auth flow a few
     // attempts to resolve. Otherwise, don't retry repeatedly on benign
     // "not authenticated" errors that occur on logout or cold start.
-    const redirectPending = (await AsyncStorage.getItem("auth:redirecting")) === "1";
+    const redirectPending =
+      (await AsyncStorage.getItem("auth:redirecting")) === "1";
 
     const MAX_ATTEMPTS = redirectPending ? 5 : 1;
     let attempt = 0;
