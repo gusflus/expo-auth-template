@@ -82,53 +82,6 @@ export default function LoginScreen() {
     try {
       setLoading(true);
 
-      // const credential = await AppleAuthentication.signInAsync({
-      //   requestedScopes: [
-      //     AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-      //     AppleAuthentication.AppleAuthenticationScope.EMAIL,
-      //   ],
-      // });
-
-      // const apiUrl = process.env.EXPO_PUBLIC_APPLE_AUTH_API_URL;
-      // const response = await fetch(`${apiUrl}/apple-auth`, {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({ identityToken: credential.identityToken }),
-      // });
-
-      // if (response.status === 409) {
-      //   const conflict = await response.json().catch(() => null);
-      //   const existing = (conflict?.existingProviders || []) as string[];
-      //   if (existing.some((p) => p.toLowerCase().includes("google"))) {
-      //     Alert.alert(
-      //       "Account exists",
-      //       "An account with this email exists using Google. Would you like to sign in with Google instead?",
-      //       [
-      //         { text: "Sign in with Google", onPress: handleGoogleSignIn },
-      //         { text: "Cancel", style: "cancel" },
-      //       ]
-      //     );
-      //   } else {
-      //     Alert.alert(
-      //       "Account exists",
-      //       conflict?.message || "Please sign in with your existing provider."
-      //     );
-      //   }
-      //   setLoading(false);
-      //   return;
-      // }
-
-      // if (!response.ok) {
-      //   const text = await response.text();
-      //   throw new Error(`Backend error: ${response.status} - ${text}`);
-      // }
-
-      // // Success — use Hosted UI redirect for Apple since the modular Amplify build
-      // // used here doesn't expose `Auth.federatedSignIn`. This keeps parity with
-      // // Google (which uses Hosted UI via `signInWithRedirect`).
-      // console.debug(
-      //   "Apple Sign In: falling back to Hosted UI redirect (signInWithRedirect)"
-      // );
       try {
         // Use the Amplify provider name configured in `amplify-config` ("Apple")
         await AsyncStorage.setItem("auth:redirecting", "1");
