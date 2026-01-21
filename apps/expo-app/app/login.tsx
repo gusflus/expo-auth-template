@@ -1,10 +1,10 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   clearPendingSignup,
   getPendingSignup,
   setPendingSignup,
   useAuth,
-} from "auth";
+} from "@/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   resendSignUpCode,
   signIn,
@@ -50,10 +50,10 @@ export default function LoginScreen() {
         if (pending?.username) {
           router.replace(
             `/confirm?username=${encodeURIComponent(
-              pending.username
+              pending.username,
             )}&password=${encodeURIComponent(
-              pending.password ?? ""
-            )}&email=${encodeURIComponent(pending.email ?? "")}`
+              pending.password ?? "",
+            )}&email=${encodeURIComponent(pending.email ?? "")}`,
           );
         }
       } catch (err) {
@@ -98,7 +98,7 @@ export default function LoginScreen() {
         }
         Alert.alert(
           "Apple Sign In Error",
-          "Failed to start Hosted UI sign-in. Please try again."
+          "Failed to start Hosted UI sign-in. Please try again.",
         );
         setLoading(false);
         return;
@@ -142,10 +142,10 @@ export default function LoginScreen() {
 
         router.push(
           `/confirm?username=${encodeURIComponent(
-            email
+            email,
           )}&password=${encodeURIComponent(
-            password
-          )}&email=${encodeURIComponent(email)}`
+            password,
+          )}&email=${encodeURIComponent(email)}`,
         );
 
         // Navigated to confirmation; the confirmation screen will guide the user
@@ -170,7 +170,7 @@ export default function LoginScreen() {
             } catch (err) {
               console.warn(
                 "resendSignUpCode failed in not-found recovery:",
-                err
+                err,
               );
             }
 
@@ -183,16 +183,16 @@ export default function LoginScreen() {
             } catch (err) {
               console.warn(
                 "Failed to persist pending signup during recovery",
-                err
+                err,
               );
             }
 
             router.push(
               `/confirm?username=${encodeURIComponent(
-                target
+                target,
               )}&password=${encodeURIComponent(
-                pending.password ?? password
-              )}&email=${encodeURIComponent(pending.email ?? email)}`
+                pending.password ?? password,
+              )}&email=${encodeURIComponent(pending.email ?? email)}`,
             );
 
             // Navigated to confirmation; the confirmation screen will guide the user
@@ -223,7 +223,7 @@ export default function LoginScreen() {
                   } catch (err) {
                     console.warn(
                       "resendSignUpCode failed for pooled username:",
-                      err
+                      err,
                     );
                   }
 
@@ -236,16 +236,16 @@ export default function LoginScreen() {
                   } catch (err) {
                     console.warn(
                       "Failed to persist pending signup during backend recovery",
-                      err
+                      err,
                     );
                   }
 
                   router.push(
                     `/confirm?username=${encodeURIComponent(
-                      poolUsername
+                      poolUsername,
                     )}&password=${encodeURIComponent(
-                      password
-                    )}&email=${encodeURIComponent(email)}`
+                      password,
+                    )}&email=${encodeURIComponent(email)}`,
                   );
 
                   // Navigated to confirmation; the confirmation screen will guide the user
@@ -256,14 +256,14 @@ export default function LoginScreen() {
             } catch (err) {
               console.warn(
                 "check-email lookup failed during sign-in recovery",
-                err
+                err,
               );
             }
           }
         } catch (err) {
           console.warn(
             "Error checking pending signup during sign-in recovery",
-            err
+            err,
           );
         }
       }
@@ -291,16 +291,16 @@ export default function LoginScreen() {
           } catch (err) {
             console.warn(
               "Failed to persist pending signup during fallback",
-              err
+              err,
             );
           }
 
           router.push(
             `/confirm?username=${encodeURIComponent(
-              target
+              target,
             )}&password=${encodeURIComponent(
-              pending.password ?? password
-            )}&email=${encodeURIComponent(pending.email ?? email)}`
+              pending.password ?? password,
+            )}&email=${encodeURIComponent(pending.email ?? email)}`,
           );
 
           // Navigated to confirmation; the confirmation screen will guide the user
@@ -317,10 +317,10 @@ export default function LoginScreen() {
         await setPendingSignup({ username: email, password, email });
         router.push(
           `/confirm?username=${encodeURIComponent(
-            email
+            email,
           )}&password=${encodeURIComponent(
-            password
-          )}&email=${encodeURIComponent(email)}`
+            password,
+          )}&email=${encodeURIComponent(email)}`,
         );
         // Navigated to confirmation as a recovery attempt; the confirmation screen will guide the user
         setLoading(false);
@@ -329,7 +329,7 @@ export default function LoginScreen() {
         console.debug(
           "resendSignUpCode fallback did not succeed for identifier",
           email,
-          err
+          err,
         );
       }
 
@@ -363,7 +363,7 @@ export default function LoginScreen() {
           if (conflict?.userStatus === "UNCONFIRMED") {
             console.log(
               "check-email: unconfirmed account found; attempting replace",
-              { userPoolUsername: conflict?.userPoolUsername }
+              { userPoolUsername: conflict?.userPoolUsername },
             );
             try {
               const replaceResp = await fetch(`${apiUrl}/replace-unconfirmed`, {
@@ -391,21 +391,21 @@ export default function LoginScreen() {
                   } catch (err) {
                     console.warn(
                       "Failed to persist pending signup after replace",
-                      err
+                      err,
                     );
                   }
 
                   router.push(
                     `/confirm?username=${encodeURIComponent(
-                      username
+                      username,
                     )}&password=${encodeURIComponent(
-                      password
-                    )}&email=${encodeURIComponent(email)}`
+                      password,
+                    )}&email=${encodeURIComponent(email)}`,
                   );
                   setLoading(false);
                   Alert.alert(
                     "Success",
-                    "Please check your email for the confirmation code."
+                    "Please check your email for the confirmation code.",
                   );
                   return;
                 } catch (err: any) {
@@ -417,7 +417,7 @@ export default function LoginScreen() {
                 console.warn(
                   "replace-unconfirmed failed",
                   replaceResp.status,
-                  text
+                  text,
                 );
                 // Fall through to normal messaging
               }
@@ -435,12 +435,13 @@ export default function LoginScreen() {
               [
                 { text: "Sign in with Google", onPress: handleGoogleSignIn },
                 { text: "Cancel", style: "cancel" },
-              ]
+              ],
             );
           } else {
             Alert.alert(
               "Account exists",
-              conflict?.message || "Please sign in with your existing provider."
+              conflict?.message ||
+                "Please sign in with your existing provider.",
             );
           }
           setLoading(false);
@@ -478,15 +479,15 @@ export default function LoginScreen() {
       // Redirect to the confirmation page and pass the temporary credentials so we can sign-in automatically
       router.push(
         `/confirm?username=${encodeURIComponent(
-          username
+          username,
         )}&password=${encodeURIComponent(password)}&email=${encodeURIComponent(
-          email
-        )}`
+          email,
+        )}`,
       );
       setLoading(false);
       Alert.alert(
         "Success",
-        "Please check your email for the confirmation code"
+        "Please check your email for the confirmation code",
       );
     } catch (error: any) {
       const msg = error?.message ?? String(error);
@@ -504,10 +505,10 @@ export default function LoginScreen() {
 
           router.push(
             `/confirm?username=${encodeURIComponent(
-              target
+              target,
             )}&password=${encodeURIComponent(
-              password
-            )}&email=${encodeURIComponent(email)}`
+              password,
+            )}&email=${encodeURIComponent(email)}`,
           );
 
           // Navigated to confirmation; the confirmation screen will guide the user
@@ -516,7 +517,7 @@ export default function LoginScreen() {
         } catch (err: any) {
           console.warn(
             "Resend attempt failed during signup error handling (naive):",
-            err
+            err,
           );
           // If that fails, try looking up the username by email on the backend
           const apiUrl = process.env.EXPO_PUBLIC_APPLE_AUTH_API_URL;
@@ -533,7 +534,7 @@ export default function LoginScreen() {
                 const poolUsername = conflict?.userPoolUsername;
                 console.log(
                   "check-email response during signup recovery: 409",
-                  { poolUsername, conflict }
+                  { poolUsername, conflict },
                 );
                 if (poolUsername) {
                   try {
@@ -541,7 +542,7 @@ export default function LoginScreen() {
                   } catch (err: any) {
                     console.warn(
                       "Resend attempt failed during signup error handling (backend lookup):",
-                      err
+                      err,
                     );
                   }
 
@@ -554,16 +555,16 @@ export default function LoginScreen() {
                   } catch (err) {
                     console.warn(
                       "Failed to persist pending signup during backend recovery (signup)",
-                      err
+                      err,
                     );
                   }
 
                   router.push(
                     `/confirm?username=${encodeURIComponent(
-                      poolUsername
+                      poolUsername,
                     )}&password=${encodeURIComponent(
-                      password
-                    )}&email=${encodeURIComponent(email)}`
+                      password,
+                    )}&email=${encodeURIComponent(email)}`,
                   );
 
                   // Navigated to confirmation; the confirmation screen will guide the user
@@ -574,7 +575,7 @@ export default function LoginScreen() {
             } catch (err) {
               console.warn(
                 "check-email lookup failed during signup recovery",
-                err
+                err,
               );
             }
           }
@@ -594,6 +595,28 @@ export default function LoginScreen() {
       </View>
     );
   }
+
+  const handleTestUnauthenticatedRequest = async () => {
+    try {
+      Alert.alert("Testing", "Making unauthenticated API request...");
+      // This is a test request - modify the endpoint based on your actual API
+      const response = await fetch(
+        (process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000") +
+          "/test",
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+      const data = await response.json();
+      Alert.alert("Success", JSON.stringify(data, null, 2));
+    } catch (error) {
+      Alert.alert(
+        "Error",
+        error instanceof Error ? error.message : "Failed to make API request",
+      );
+    }
+  };
 
   return (
     <ScrollView style={styles.container}>
@@ -683,7 +706,7 @@ export default function LoginScreen() {
                       },
                     },
                     { text: "OK", style: "cancel" },
-                  ]
+                  ],
                 );
               } catch (err) {
                 Alert.alert("Error", "Failed to read pending signup");
@@ -693,6 +716,18 @@ export default function LoginScreen() {
             <Text style={[styles.linkText, { color: "#999" }]}>
               Dev: View Pending Signup
             </Text>
+          </TouchableOpacity>
+        )}
+
+        {__DEV__ && (
+          <TouchableOpacity
+            style={[
+              styles.button,
+              { backgroundColor: "#34C759", marginTop: 12 },
+            ]}
+            onPress={handleTestUnauthenticatedRequest}
+          >
+            <Text style={styles.buttonText}>Dev: Test Unauthenticated API</Text>
           </TouchableOpacity>
         )}
       </View>

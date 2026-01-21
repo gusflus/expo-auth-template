@@ -3250,6 +3250,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@expo-auth-template/api@workspace:packages/api":
+  version: 0.0.0-use.local
+  resolution: "@expo-auth-template/api@workspace:packages/api"
+  dependencies:
+    "@tanstack/react-query": "npm:^5.90.19"
+    "@types/node": "npm:22.7.9"
+    typescript: "npm:~5.6.3"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  languageName: unknown
+  linkType: soft
+
 "@expo/cli@npm:54.0.20":
   version: 54.0.20
   resolution: "@expo/cli@npm:54.0.20"
@@ -5885,6 +5898,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@tanstack/query-core@npm:5.90.19":
+  version: 5.90.19
+  resolution: "@tanstack/query-core@npm:5.90.19"
+  checksum: 10c0/f6974064238d94025cd1fb8e9ba6a1ffb90d137e0d3fb6949252e81032ae446e948073ea999a4d11e1b6000df7eeec15cda92b76a264249f091f7543a192e958
+  languageName: node
+  linkType: hard
+
+"@tanstack/react-query@npm:^5.90.19":
+  version: 5.90.19
+  resolution: "@tanstack/react-query@npm:5.90.19"
+  dependencies:
+    "@tanstack/query-core": "npm:5.90.19"
+  peerDependencies:
+    react: ^18 || ^19
+  checksum: 10c0/5176a363855c9ce87e6b7fe034ee9538766b209fea561c1f8e9aadbca1891d0d03fe3b28ccf79fc2077ba9d77a89aab59ca8b66b00f12519e207b24f47868554
+  languageName: node
+  linkType: hard
+
 "@tsconfig/node10@npm:^1.0.7":
   version: 1.0.12
   resolution: "@tsconfig/node10@npm:1.0.12"
@@ -6880,6 +6911,7 @@ __metadata:
   resolution: "auth@workspace:packages/auth"
   peerDependencies:
     "@react-native-async-storage/async-storage": "*"
+    "@tanstack/react-query": "*"
     aws-amplify: "*"
     expo-router: "*"
     react: "*"
@@ -8741,6 +8773,8 @@ __metadata:
     react-native-web: "npm:~0.21.0"
     react-native-worklets: "npm:0.5.1"
     typescript: "npm:~5.9.2"
+  peerDependencies:
+    "@tanstack/react-query": "*"
   languageName: unknown
   linkType: soft
 

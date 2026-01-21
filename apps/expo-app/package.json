@@ -53,5 +53,8 @@
     "eslint-config-expo": "~10.0.0",
     "typescript": "~5.9.2"
   },
+  "peerDependencies": {
+    "@tanstack/react-query": "*"
+  },
   "private": true
 }

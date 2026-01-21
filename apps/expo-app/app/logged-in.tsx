@@ -1,8 +1,9 @@
-import { useAuth } from "auth";
+import { useAuth } from "@/auth";
 import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +17,8 @@ export default function LoggedInScreen() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [jwtToken, setJwtToken] = useState<string | null>(null);
+  const [apiResponse, setApiResponse] = useState<string | null>(null);
+  const [apiLoading, setApiLoading] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -66,6 +69,42 @@ export default function LoggedInScreen() {
     }
   };
 
+  const handleTestAuthenticatedRequest = async () => {
+    try {
+      setApiLoading(true);
+      setApiResponse("Making authenticated API request...");
+      // This is a test request - modify the endpoint based on your actual API
+      const token = jwtToken;
+      if (!token) {
+        Alert.alert("Error", "No auth token available");
+        return;
+      }
+
+      const response = await fetch(
+        (process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000") +
+          "/protected",
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      const data = await response.json();
+      setApiResponse(JSON.stringify(data, null, 2));
+      Alert.alert("Success", JSON.stringify(data, null, 2));
+    } catch (error) {
+      const errorMsg =
+        error instanceof Error ? error.message : "Failed to make API request";
+      setApiResponse(errorMsg);
+      Alert.alert("Error", errorMsg);
+    } finally {
+      setApiLoading(false);
+    }
+  };
+
   if (loading)
     return (
       <View style={styles.container}>
@@ -97,6 +136,30 @@ export default function LoggedInScreen() {
           value={jwtToken ?? ""}
           editable={false}
         />
+      </View>
+
+      <View style={styles.userInfo}>
+        <TouchableOpacity
+          style={[styles.signOutButton, { backgroundColor: "#34C759" }]}
+          onPress={handleTestAuthenticatedRequest}
+          disabled={apiLoading}
+        >
+          <Text style={styles.buttonText}>
+            {apiLoading ? "Testing..." : "Dev: Test Authenticated API"}
+          </Text>
+        </TouchableOpacity>
+
+        {apiResponse && (
+          <View style={{ marginTop: 12 }}>
+            <Text style={styles.sectionTitle}>API Response:</Text>
+            <TextInput
+              style={[styles.input, { height: 100 }]}
+              multiline
+              value={apiResponse}
+              editable={false}
+            />
+          </View>
+        )}
       </View>
     </ScrollView>
   );

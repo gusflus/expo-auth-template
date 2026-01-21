@@ -29,7 +29,8 @@
     "packages": [
       "apps/expo-app",
       "lambda",
-      "packages/auth"
+      "packages/auth",
+      "packages/api"
     ]
   }
 }
