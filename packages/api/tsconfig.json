@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    // "declaration": true,
+    // "declarationMap": true,
+    // "sourceMap": true,
+    // "inlineSourceMap": false,
+    "moduleResolution": "bundler",
+    "module": "esnext",
+    "jsx": "react-jsx",
+    "baseUrl": "../../",
+    "paths": {
+      "@/auth": ["packages/auth/src"],
+      "@/api": ["packages/api/src"],
+      "@/auth/*": ["packages/auth/src/*"],
+      "@/api/*": ["packages/api/src/*"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}

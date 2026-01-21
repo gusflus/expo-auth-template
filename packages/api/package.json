@@ -1,0 +1,25 @@
+{
+  "name": "@expo-auth-template/api",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.90.19"
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*"
+  },
+  "devDependencies": {
+    "@types/node": "22.7.9",
+    "typescript": "~5.6.3"
+  }
+}

@@ -1,11 +1,13 @@
 {
   "name": "auth",
   "version": "0.1.0",
+  "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "private": true,
   "peerDependencies": {
     "@react-native-async-storage/async-storage": "*",
+    "@tanstack/react-query": "*",
     "aws-amplify": "*",
     "expo-router": "*",
     "react": "*",

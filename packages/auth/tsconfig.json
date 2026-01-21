@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "baseUrl": ".",
+    "baseUrl": "../../",
     "composite": true,
     "declaration": true,
     "declarationMap": true,
@@ -9,8 +9,10 @@
     "jsx": "react-native",
     "outDir": "dist",
     "paths": {
-      "auth": ["../packages/auth/src"],
-      "auth/*": ["../packages/auth/src/*"]
+      "@/auth": ["packages/auth/src"],
+      "@/api": ["packages/api/src"],
+      "@/auth/*": ["packages/auth/src/*"],
+      "@/api/*": ["packages/api/src/*"]
     },
     "rootDir": "src",
     "skipLibCheck": true,
